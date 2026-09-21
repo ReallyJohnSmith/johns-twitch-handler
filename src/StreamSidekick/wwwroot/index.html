@@ -23,7 +23,7 @@
         </div>
       </div>
       <div class="status-strip">
-        <span class="privacy-pill" title="John cannot see your settings, credentials, reports, or activity.">🔒 Data stays on this PC</span>
+        <span class="privacy-pill" title="John cannot see your settings, credentials, reports, or activity.">LOCAL ONLY · Data stays on this PC</span>
         <div class="user-mode-switch" role="group" aria-label="Dashboard detail level">
           <button type="button" class="active" data-user-mode="simple" aria-pressed="true">Simple</button>
           <button type="button" data-user-mode="advanced" aria-pressed="false">Advanced</button>
@@ -42,7 +42,7 @@
         <span id="obs-pill" class="pill offline advanced-only"><i></i> OBS offline</span>
         <span id="session-pill" class="pill neutral advanced-only"><i></i> No session</span>
         <button class="icon-button advanced-only" id="reset-layout" aria-label="Reset dashboard layout" title="Reset dashboard layout">↺</button>
-        <button class="icon-button" id="settings-button" aria-label="Open settings">⚙</button>
+        <button class="icon-button" id="settings-button" aria-label="Open settings">Settings</button>
       </div>
     </header>
 
@@ -70,6 +70,14 @@
       </nav>
 
       <main id="workspace-main" tabindex="-1">
+      <!-- The live status strip is intentionally singular: one diagnosis, one timer, one action. -->
+      <section class="live-status-strip" id="live-status-strip" aria-live="polite" hidden>
+        <span class="live-status-symbol" id="live-status-symbol" aria-hidden="true">●</span>
+        <strong id="live-status-title">CHECKING STREAM</strong>
+        <time id="live-status-time">NOT TRACKING</time>
+        <span id="live-status-detail">Checking OBS, system load, and internet.</span>
+        <button class="secondary" id="live-status-fix" type="button" hidden>Fix It</button>
+      </section>
       <!-- Session tracking is separate from OBS going live; it defines the reporting time window. -->
       <section class="hero-card advanced-detail">
         <div class="session-copy">
@@ -202,6 +210,16 @@
               <button class="secondary" id="simple-quick-secondary" type="button" data-simple-tool="settings">Connections</button>
             </div>
           </section>
+          <section class="simple-feature-card" id="simple-pinned-card" hidden>
+            <div class="simple-feature-heading">
+              <div>
+                <small>PINNED TOOLS</small>
+                <h3>Your shortcuts</h3>
+              </div>
+            </div>
+            <p>Open optional tools without switching to the full Advanced dashboard.</p>
+            <div class="simple-quick-actions" id="simple-pinned-actions"></div>
+          </section>
         </div>
         <div class="simple-title-row" id="simple-title-row">
           <input id="simple-stream-title" type="text" maxlength="100" placeholder="Tonight's stream title (optional)">
@@ -209,6 +227,7 @@
         <div class="simple-summary-actions">
           <button id="simple-primary-action" class="primary" type="button">Checking…</button>
           <button id="simple-details-toggle" class="secondary" type="button">Show details</button>
+          <button id="customize-simple" class="text-button" type="button">Customize Simple</button>
         </div>
       </section>
 
@@ -274,9 +293,9 @@
             <label><input id="create-twitch-clip" type="checkbox"> Create Twitch clip</label>
           </div>
           <div class="quick-markers">
-            <button data-marker="Great play" data-kind="clip">⚡ Great play</button>
-            <button data-marker="Funny moment" data-kind="funny">☺ Funny</button>
-            <button data-marker="Chat moment" data-kind="chat">☷ Chat</button>
+            <button data-marker="Great play" data-kind="clip"><span class="utility-icon">P</span> Great play</button>
+            <button data-marker="Funny moment" data-kind="funny"><span class="utility-icon">F</span> Funny</button>
+            <button data-marker="Chat moment" data-kind="chat"><span class="utility-icon">C</span> Chat</button>
           </div>
           <button id="add-marker" class="primary wide">Save highlight marker</button>
           <button id="create-social-clip" class="secondary wide">Create clip for TikTok / YouTube</button>
@@ -548,7 +567,7 @@
             <span id="spotify-state" class="tiny-status">Not connected</span>
           </div>
           <div class="spotify-now-playing">
-            <span id="spotify-play-state" class="spotify-mark">♫</span>
+            <span id="spotify-play-state" class="spotify-mark">♪</span>
             <div><strong id="spotify-track-title">Connect Spotify to begin</strong><small id="spotify-track-detail">Requests play through your active Spotify device.</small></div>
             <div class="spotify-playback-actions"><span id="spotify-device">Not available</span><button id="skip-spotify" class="text-button" disabled>Skip →</button></div>
           </div>
@@ -817,6 +836,21 @@
     </form>
   </dialog>
 
+  <dialog id="simple-customize-dialog">
+    <form method="dialog" class="settings-card compact-dialog">
+      <div class="panel-heading">
+        <div><span class="eyebrow">SIMPLE MODE</span><h3>Choose what stays within reach</h3></div>
+        <button class="icon-button" value="cancel" aria-label="Close Simple mode customization">×</button>
+      </div>
+      <p class="helper">These choices only change what is shown in Simple mode. No feature is disabled or removed.</p>
+      <div class="simple-customize-list" id="simple-customize-list"></div>
+      <div class="dialog-actions">
+        <button id="reset-simple-customization" type="button" class="secondary">Restore recommended</button>
+        <button value="close" class="primary">Done</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- Passwords and access tokens are submitted to the local server but never stored by the browser. -->
   <dialog id="settings-dialog">
     <form method="dialog" class="settings-card">
@@ -843,7 +877,7 @@
       </section>
 
       <section class="privacy-notice" aria-label="Tester privacy">
-        <strong>🔒 Private to this computer</strong>
+        <strong>LOCAL ONLY · Private to this computer</strong>
         <p>Nothing you enter is sent to John or remotely stored by John. Connections, preferences, and reports stay on this PC. Login credentials are encrypted for your Windows account. John sees information only if you personally choose to send him an exported diagnostic file.</p>
       </section>
 

@@ -4,7 +4,11 @@
 
 - Added personal Preflight reminders, including **Get Coffee**, directly to Simple mode.
 - Added a compact, interpreted Stream Health summary without exposing raw metrics.
-- Added two stage-aware shortcuts for setup, live controls, chat, reports, and clips.
+- Added two stage-aware shortcuts for setup, live OBS/audio controls, reports, and clips.
+- Added **Customize Simple** so users can choose the core sections and optionally pin Chat, Song Requests, or the Ad Timer.
+- Reworked the interface into a flatter, tighter broadcast-console style with less decorative UI.
+- Added the During-stream status strip: **STREAM HEALTHY**, **PERFORMANCE PRESSURE**, or **STREAM AT RISK**.
+- Prioritized current OBS controls and important audio while leaving raw metrics and integrations in Advanced.
 
 ## .007 - 2026-09-21
 

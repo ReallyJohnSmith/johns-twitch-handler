@@ -1379,7 +1379,8 @@ async function saveChatChime() {
 }
 
 function alertIcon(type) {
-  return ({ follow: "+", subscription: "★", gift: "🎁", resub: "↻", cheer: "◆", raid: "⚑", reward: "✦", ad: "◷", live: "●", offline: "■", test: "✓", warning: "!" })[type] || "•";
+  // Activity uses one restrained utility-style glyph set instead of mixed platform emoji.
+  return ({ follow: "+", subscription: "S", gift: "G", resub: "R", cheer: "B", raid: "R", reward: "C", ad: "A", live: "●", offline: "■", test: "✓", warning: "!" })[type] || "•";
 }
 
 function alertHighlightClass(type) {
@@ -1428,7 +1429,7 @@ function renderSpotify() {
   $("#spotify-track-title").textContent = track?.title || (snapshot.connected ? "No active playback" : "Connect Spotify to begin");
   $("#spotify-track-detail").textContent = track ? `${track.artist} · ${track.album}` : (snapshot.status || "Requests play through your active Spotify device.");
   $("#spotify-device").textContent = playback ? `${playback.deviceName} · ${playback.volumePercent}%` : "Not available";
-  $("#spotify-play-state").textContent = playback?.isPlaying ? "▶" : "♫";
+  $("#spotify-play-state").textContent = playback?.isPlaying ? "▶" : "♪";
   const rewardInput = $("#spotify-reward-title");
   if (document.activeElement !== rewardInput) rewardInput.value = snapshot.options?.rewardTitle || "Song Request";
   $("#spotify-auto-queue").checked = Boolean(snapshot.options?.autoQueue);
@@ -1503,6 +1504,16 @@ const themeStorageKey = "streamsidekick.theme";
 const workspaceStorageKey = "streamsidekick.workspacePage";
 const panelPagesStorageKey = "streamsidekick.panelPages";
 const userModeStorageKey = "streamsidekick.userMode";
+const simpleFeatureStorageKey = "johns-handler.simple-features";
+const simpleFeatureDefinitions = [
+  { id: "reminders", label: "Personal checklist", detail: "Show Get Coffee and other manual Preflight reminders.", defaultEnabled: true },
+  { id: "health", label: "Stream Health", detail: "Show the plain-English computer and internet summary before streaming.", defaultEnabled: true },
+  { id: "quick", label: "Stage shortcuts", detail: "Show the two most useful controls for the current stream stage.", defaultEnabled: true },
+  { id: "chat", label: "Chat and activity", detail: "Pin a shortcut to combined chat and viewer activity.", defaultEnabled: false },
+  { id: "spotify", label: "Song requests", detail: "Pin a shortcut to the Spotify queue and request controls.", defaultEnabled: false },
+  { id: "ads", label: "Ad timer", detail: "Pin a shortcut to the ad-break timer.", defaultEnabled: false }
+];
+let simpleFeaturePreferences = loadSimpleFeaturePreferences();
 const defaultPanelOrder = ["stream-health", "clips", "scenes", "audio", "chat", "alerts", "commands", "automations", "raids", "viewers", "streamelements", "tikfinity", "tangia", "ads", "spotify", "performance", "optimizer", "report"];
 let layoutSaveChain = Promise.resolve();
 
@@ -1521,6 +1532,20 @@ const workspacePages = {
   }
 };
 
+function loadSimpleFeaturePreferences() {
+  const defaults = Object.fromEntries(simpleFeatureDefinitions.map(feature => [feature.id, feature.defaultEnabled]));
+  try {
+    const saved = JSON.parse(localStorage.getItem(simpleFeatureStorageKey) || "{}");
+    return Object.fromEntries(Object.entries(defaults).map(([id, enabled]) => [id, typeof saved?.[id] === "boolean" ? saved[id] : enabled]));
+  } catch {
+    return defaults;
+  }
+}
+
+function saveSimpleFeaturePreferences() {
+  localStorage.setItem(simpleFeatureStorageKey, JSON.stringify(simpleFeaturePreferences));
+}
+
 function initializeUserMode() {
   const saved = localStorage.getItem(userModeStorageKey);
   applyUserMode(saved === "advanced" ? "advanced" : "simple", false);
@@ -1531,6 +1556,7 @@ function initializeUserMode() {
     setSimpleDetails(!document.body.classList.contains("simple-details-open"));
   });
   $("#simple-primary-action").addEventListener("click", runSimplePrimaryAction);
+  $("#live-status-fix").addEventListener("click", () => runSimpleTool("health"));
   $("#simple-stream-title").addEventListener("input", event => {
     $("#stream-title").value = event.target.value;
   });
@@ -1585,8 +1611,8 @@ function renderSimpleManualReminders() {
   const list = $("#simple-reminder-list");
   if (!card || !list) return;
   const onPreStream = (document.body.dataset.workspacePage || "pre") === "pre";
-  card.hidden = !onPreStream;
-  if (!onPreStream) return;
+  card.hidden = !onPreStream || !simpleFeaturePreferences.reminders;
+  if (card.hidden) return;
   list.innerHTML = state.manualPreflightItems.length
     ? state.manualPreflightItems.map(item => `<label class="simple-reminder ${item.checked ? "done" : ""}">
         <input type="checkbox" data-simple-manual-id="${escapeHtml(item.id)}" ${item.checked ? "checked" : ""}>
@@ -1634,13 +1660,14 @@ function renderSimpleTools(page) {
   renderSimpleManualReminders();
   const health = getSimpleHealthSummary();
   const healthCard = $("#simple-health-card");
+  healthCard.hidden = page !== "pre" || !simpleFeaturePreferences.health;
   healthCard.className = `simple-feature-card ${health.level}`;
   $("#simple-health-state").textContent = health.state;
   $("#simple-health-title").textContent = health.title;
   $("#simple-health-detail").textContent = health.detail;
 
   const quickTools = page === "during"
-    ? { title: "During-stream tools", detail: "Keep chat and your most important OBS controls within easy reach.", primary: ["chat", "Open chat"], secondary: ["controls", "Stream controls"] }
+    ? { title: "Live controls", detail: state.obs?.currentScene ? `Current scene: ${state.obs.currentScene}` : "Keep OBS scenes and important audio within easy reach.", primary: ["controls", "OBS controls"], secondary: ["audio", "Audio mixer"] }
     : page === "after"
       ? { title: "After-stream tools", detail: "Review the show and prepare the moments you want to share.", primary: ["report", "Review report"], secondary: ["clips", "Clip assistant"] }
       : { title: "Setup tools", detail: "Refresh the checks or open your saved connection settings.", primary: ["refresh", "Refresh status"], secondary: ["settings", "Connections"] };
@@ -1652,6 +1679,18 @@ function renderSimpleTools(page) {
   const secondary = $("#simple-quick-secondary");
   secondary.dataset.simpleTool = quickTools.secondary[0];
   secondary.textContent = quickTools.secondary[1];
+  $("#simple-quick-card").hidden = !simpleFeaturePreferences.quick;
+
+  const pinned = [
+    ["chat", "Chat & activity"],
+    ["spotify", "Song requests"],
+    ["ads", "Ad timer"]
+  ].filter(([id]) => simpleFeaturePreferences[id]);
+  const pinnedCard = $("#simple-pinned-card");
+  pinnedCard.hidden = pinned.length === 0;
+  $("#simple-pinned-actions").innerHTML = pinned.map(([id, label]) =>
+    `<button class="secondary" type="button" data-simple-tool="${id}">${label}</button>`).join("");
+  if (grid) grid.hidden = [...grid.children].every(card => card.hidden);
 }
 
 function runSimpleTool(tool) {
@@ -1660,8 +1699,19 @@ function runSimpleTool(tool) {
   else if (tool === "health") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="performance"]'), document.body.dataset.workspacePage || "pre"); }
   else if (tool === "chat") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="chat"]'), "during"); }
   else if (tool === "controls") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="scenes"]'), "during"); }
+  else if (tool === "audio") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="audio"]'), "during"); }
+  else if (tool === "spotify") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="spotify"]'), "during"); }
+  else if (tool === "ads") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="ads"]'), "during"); }
   else if (tool === "report") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="report"]'), "after"); }
   else if (tool === "clips") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="clips"]'), "after"); }
+}
+
+function renderSimpleCustomization() {
+  $("#simple-customize-list").innerHTML = simpleFeatureDefinitions.map(feature => `
+    <label class="simple-customize-row">
+      <input type="checkbox" data-simple-feature="${feature.id}" ${simpleFeaturePreferences[feature.id] ? "checked" : ""}>
+      <span><strong>${escapeHtml(feature.label)}</strong><small>${escapeHtml(feature.detail)}</small></span>
+    </label>`).join("");
 }
 
 function setSimpleSummary(model) {
@@ -1676,6 +1726,7 @@ function setSimpleSummary(model) {
     simpleStatusItem(item.label, item.status, item.level)).join("");
   $("#simple-title-row").hidden = model.showTitle !== true;
   const action = $("#simple-primary-action");
+  action.hidden = false;
   action.textContent = model.actionLabel || "Show details";
   action.dataset.action = model.action || "show-details";
   action.disabled = model.action === "waiting";
@@ -1742,22 +1793,29 @@ function getSimpleDuringModel() {
   const congestion = Number(state.obs?.outputCongestion) || 0;
   const internetStatus = state.internet?.status || "checking";
   const internetProblem = internetStatus === "offline" || internetStatus === "unstable" || congestion >= .1;
-  const severe = Math.max(cpu, gpu) >= 95 || renderMissed >= 1 || encoderMissed >= 1 || internetProblem;
-  const limited = severe || Math.max(cpu, gpu) >= 85 || renderMissed >= .25 || congestion > .02 || internetStatus === "slow";
+  const microphoneReady = Boolean(state.preflight?.microphoneReady);
+  const severe = !state.obs?.connected || Math.max(cpu, gpu) >= 95 || renderMissed >= 1 || encoderMissed >= 1 || internetProblem;
+  const limited = severe || !microphoneReady || Math.max(cpu, gpu) >= 85 || renderMissed >= .25 || congestion > .02 || internetStatus === "slow";
   const obsHealthy = state.obs?.connected && renderMissed < .25 && encoderMissed < 1;
   const items = [
     { label: "OBS", status: !state.obs?.connected ? "Not connected" : obsHealthy ? "Healthy" : "Under pressure", level: !state.obs?.connected ? "warning" : obsHealthy ? "ready" : "warning" },
+    { label: "Microphone", status: state.preflight?.microphoneReady ? "Ready" : "Needs attention", level: state.preflight?.microphoneReady ? "ready" : "warning" },
     { label: "Internet", status: internetStatus === "healthy" ? "Healthy" : internetStatus === "checking" ? "Checking" : "Needs attention", level: internetStatus === "healthy" ? "ready" : internetStatus === "offline" ? "critical" : "warning" },
-    { label: "Computer", status: Math.max(cpu, gpu) < 85 ? "Healthy" : "Under pressure", level: Math.max(cpu, gpu) < 85 ? "ready" : severe ? "critical" : "warning" },
-    { label: "Session", status: state.sessionActive ? "Tracking" : "Not tracking", level: state.sessionActive ? "ready" : "warning" }
+    { label: "Computer", status: Math.max(cpu, gpu) < 85 ? "Healthy" : "Under pressure", level: Math.max(cpu, gpu) < 85 ? "ready" : severe ? "critical" : "warning" }
   ];
+  if (!state.sessionActive) return {
+    level: "neutral", icon: "■", question: "IS EVERYTHING OKAY?", title: "STREAM NOT ACTIVE",
+    detail: "Start a tracked session when you are ready to go live.", items, action: "start-session", actionLabel: "Start session"
+  };
   if (!limited) return {
     level: "healthy", icon: "✓", question: "IS EVERYTHING OKAY?", title: "STREAM HEALTHY",
-    detail: "Everything looks good.", items, action: "show-controls", actionLabel: "Open stream controls"
+    detail: "Everything looks good.", items, action: "show-chat", actionLabel: "Open chat & activity"
   };
 
   let detail = "OBS is beginning to struggle. Open the recommended fix to see what is causing it.";
-  if (internetProblem) detail = "Your connection appears to be the likely cause. Your computer is still rendering normally.";
+  if (!state.obs?.connected) detail = "OBS isn't responding. Reconnect it before continuing the stream.";
+  else if (!microphoneReady) detail = "Your microphone needs attention before you continue.";
+  else if (internetProblem) detail = "Your connection appears to be the likely cause. Your computer is still rendering normally.";
   else if (gpu >= cpu && (gpu >= 85 || renderMissed >= .25)) detail = "Your GPU appears to be the likely cause of the rendering pressure.";
   else if (cpu >= 85) detail = "Your processor appears to be the likely cause of the performance pressure.";
   else if (encoderMissed >= 1) detail = "OBS is having trouble encoding frames, but your current stream remains connected.";
@@ -1794,7 +1852,27 @@ function renderSimpleExperience() {
   const page = document.body.dataset.workspacePage || "pre";
   const model = page === "during" ? getSimpleDuringModel() : page === "after" ? getSimpleAfterModel() : getSimplePreStreamModel();
   setSimpleSummary(model);
+  $("#simple-primary-action").hidden = page === "during" && model.action === "show-health";
   renderSimpleTools(page);
+  renderDuringStatusStrip(page, model);
+}
+
+function renderDuringStatusStrip(page, model = getSimpleDuringModel()) {
+  const strip = $("#live-status-strip");
+  if (!strip) return;
+  strip.hidden = page !== "during";
+  if (page !== "during") return;
+  const level = model.level === "critical" ? "critical" : model.level === "warning" ? "warning" : model.level === "healthy" ? "healthy" : "neutral";
+  const title = level === "critical" ? "STREAM AT RISK" : level === "warning" ? "PERFORMANCE PRESSURE" : level === "healthy" ? "STREAM HEALTHY" : model.title === "STREAM NOT ACTIVE" ? "STREAM NOT ACTIVE" : "CHECKING STREAM";
+  strip.className = `live-status-strip ${level}`;
+  $("#live-status-symbol").textContent = level === "critical" || level === "warning" ? "▲" : level === "healthy" ? "●" : "■";
+  $("#live-status-title").textContent = title;
+  $("#live-status-detail").textContent = model.detail || "Checking OBS, system load, and internet.";
+  const startedAt = state.report?.startedAt ? new Date(state.report.startedAt).valueOf() : NaN;
+  $("#live-status-time").textContent = state.sessionActive && Number.isFinite(startedAt)
+    ? formatOffset(Math.max(0, (Date.now() - startedAt) / 1000))
+    : state.sessionActive ? "TRACKING" : "NOT TRACKING";
+  $("#live-status-fix").hidden = level !== "critical" && level !== "warning";
 }
 
 async function runSimplePrimaryAction() {
@@ -1806,6 +1884,7 @@ async function runSimplePrimaryAction() {
   else if (action === "load-report") { await refreshReport(true); renderSimpleExperience(); }
   else if (action === "show-report") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="report"]'), "after"); }
   else if (action === "show-controls") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="scenes"]'), "during"); }
+  else if (action === "show-chat") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="chat"]'), "during"); }
   else if (action === "show-health") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="performance"]'), document.body.dataset.workspacePage || "during"); }
   else if (action === "show-preflight" || action === "show-details") setSimpleDetails(true);
 }
@@ -2481,7 +2560,7 @@ async function toggleSession() {
         body: JSON.stringify({ title: $("#stream-title").value.trim() })
       });
       state.sessionActive = true;
-      state.report = { title: session.title, durationMinutes: 0, highlightCount: 0, sceneChangeCount: 0, markers: [] };
+      state.report = { title: session.title, startedAt: session.startedAt, durationMinutes: 0, highlightCount: 0, sceneChangeCount: 0, markers: [] };
       // Starting a show moves the interface from setup tools to the live control workspace.
       setActiveWorkspace("during", { persist: true });
       toast("Session tracking started.");
@@ -2776,6 +2855,24 @@ function openSettings() {
 
 $("#settings-button").addEventListener("click", openSettings);
 $$('[data-open-settings]').forEach(button => button.addEventListener("click", openSettings));
+$("#customize-simple").addEventListener("click", () => {
+  renderSimpleCustomization();
+  $("#simple-customize-dialog").showModal();
+});
+$("#simple-customize-list").addEventListener("change", event => {
+  const checkbox = event.target.closest("[data-simple-feature]");
+  if (!checkbox) return;
+  simpleFeaturePreferences[checkbox.dataset.simpleFeature] = checkbox.checked;
+  saveSimpleFeaturePreferences();
+  renderSimpleExperience();
+});
+$("#reset-simple-customization").addEventListener("click", () => {
+  simpleFeaturePreferences = Object.fromEntries(simpleFeatureDefinitions.map(feature => [feature.id, feature.defaultEnabled]));
+  saveSimpleFeaturePreferences();
+  renderSimpleCustomization();
+  renderSimpleExperience();
+  toast("Recommended Simple mode restored.");
+});
 $("#customize-pages").addEventListener("click", () => {
   renderPageAssignmentList();
   $("#page-assignment-dialog").showModal();
@@ -3519,6 +3616,7 @@ async function boot() {
   startPolling(refreshAutomations, 15000, "automations");
   // Countdown repaint is local only; no network or OBS work is performed every second.
   window.setInterval(renderAds, 1000);
+  window.setInterval(() => renderDuringStatusStrip(document.body.dataset.workspacePage || "pre"), 1000);
 }
 async function startDashboard() {
   initializeTheme();

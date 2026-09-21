@@ -28,7 +28,8 @@ The product has two user modes backed by the same systems and settings:
 - **Simple** is the default. It presents one obvious status, one obvious next action, plain-English
   explanations, automatic setup, sensible defaults, and minimal technical detail. It also keeps
   personal reminders, interpreted Stream Health, and two stage-appropriate shortcuts within reach.
-  Raw metrics and configuration stay behind Details.
+  A small Customize Simple control lets each user choose those sections and optionally pin Chat,
+  Song Requests, or the Ad Timer. Raw metrics and configuration stay behind Details.
 - **Advanced** exposes raw performance metrics, OBS and WebSocket details, integration diagnostics,
   detailed configuration, full customization, and troubleshooting information.
 
@@ -55,6 +56,19 @@ Development priority:
 8. Better post-stream recommendations.
 9. Installer and updater later.
 10. Code signing before broad public distribution.
+
+### Visual direction
+
+The interface should feel like **OBS plus a lightweight Windows broadcast utility**, not a generic
+SaaS analytics dashboard. Prefer flat panels, small radiuses, tight functional spacing, clear
+dividers, restrained color, and one consistent utility-style icon language. Avoid unnecessary
+gradients, shadows, glows, badges, decorative labels, and separate containers.
+
+During a stream, emphasize Stream Health first, then the current OBS scene, microphone and important
+audio, critical actions, chat/activity, optional integrations, and finally technical history. The
+During page has one recognizable top status strip: **STREAM HEALTHY**, **PERFORMANCE PRESSURE**, or
+**STREAM AT RISK**, with the session timer and a Fix It action only when needed. Simple mode remains
+one cohesive control surface; raw metrics, graphs, process data, and diagnostics remain in Advanced.
 
 ## How the application works
 
