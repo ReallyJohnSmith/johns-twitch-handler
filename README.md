@@ -2,6 +2,9 @@
 
 John's Twitch Handler is a local Windows companion for Twitch streams. It combines an OBS control dashboard, highlight/clip workflow, post-stream reports, a preflight reminder for NVIDIA Broadcast, a low-overhead CPU/GPU monitor, and a viewer-facing music queue overlay.
 
+Sharing the project with a regular ChatGPT conversation? Upload
+[`CHATGPT_README.md`](CHATGPT_README.md) for a safe, standalone product and architecture briefing.
+
 The owner and tester builds use the same approved feature set. Each installation keeps its own connection data locally; credentials are never packaged or synchronized. See `RELEASE_WORKFLOW.md` for the release rules.
 
 The current approved release is **.006**. `RELEASE_VERSION.txt` controls tester package numbering;

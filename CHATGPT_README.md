@@ -1,0 +1,277 @@
+# John's Twitch Handler - Context for ChatGPT
+
+This document is safe to upload to a regular ChatGPT conversation when discussing John's Twitch
+Handler. It contains product and technical context, but no passwords, access tokens, viewer notes,
+stream reports, or other private runtime data.
+
+## Quick introduction
+
+John's Twitch Handler is a lightweight Windows streaming companion created primarily for John to
+use on his own Twitch channel. John is the primary user and tester. The product should remain useful
+to him personally while also being simple enough for nontechnical testers to download and open.
+
+Current approved version: **.006**
+
+Source repository: <https://github.com/ReallyJohnSmith/johns-twitch-handler>
+
+The Handler combines stream preparation, live controls, chat tools, viewer integrations, performance
+monitoring, and post-stream review in one local dashboard. Its central design rule is that a tool
+intended to protect stream performance must not become a meaningful resource drain itself.
+
+## How the application works
+
+- Backend: C# and ASP.NET Core on .NET 9.
+- Frontend: plain HTML, CSS, and JavaScript. There is no React, Angular, Vue, or Node.js runtime.
+- Local server: the application starts Kestrel at `http://127.0.0.1:5274`.
+- Network exposure: the dashboard is bound to the local computer, not the LAN or public internet.
+- Database: none. Durable application data uses small local JSON or JSONL files.
+- Browser preferences: themes, collapsed cards, and similar display preferences use local storage.
+- Credentials: connection tokens and passwords are encrypted locally with ASP.NET Data Protection
+  and Windows DPAPI. They are tied to the user's Windows account and computer.
+- Distribution: the tester package is a self-contained Windows x64 ZIP. Testers do not need to
+  install .NET, Node.js, a database, or developer tools.
+
+The browser is the control surface. The local C# process owns integrations, credentials, monitoring,
+file storage, and API calls. Browser JavaScript should not receive or store secrets.
+
+## Stream workflow pages
+
+The dashboard has three pages in a persistent left navigation:
+
+1. **Pre-stream** for connections, Preflight, optional integrations, and optimization.
+2. **During stream** for OBS controls, chat, alerts, clips, music, ads, and live performance.
+3. **After stream** for reports, timelines, clips, raids, performance review, and publishing work.
+
+Users can open **Customize pages** and decide which cards appear on each page. A card may appear on
+multiple pages, but it must remain assigned to at least one. Page assignments and card order persist
+locally across restarts. Starting a tracked session opens During stream automatically; ending one
+opens After stream.
+
+## Major features already present
+
+### Preparation and OBS
+
+- Preflight checklist with red, yellow, green, and blue readiness meanings.
+- Manual checklist reminders such as `Get Coffee`.
+- Optional checklist rows can be hidden without disabling their integrations.
+- OBS WebSocket 5 connection, scene switching, replay-buffer actions, and audio controls.
+- Microphone mute-state check and unmute action in Preflight.
+- NVIDIA Broadcast detection and launch reminder.
+- Reversible, performance-first OBS recommendation centered on 720p at 30 FPS using NVENC.
+- Five dashboard color themes.
+- Movable, resizable, and collapsible cards with saved layouts and keyboard movement.
+
+### Live stream operation
+
+- Embedded Twitch chat and optional embedded YouTube live chat.
+- Optional read-only TikTok chat through the locally running TikFinity desktop application.
+- Private quiet chat notification intended for the streamer, not the broadcast.
+- Activity feed highlighting follows, subscriptions, bits, raids, and other important events.
+- Stream markers, OBS Replay Buffer saves, Twitch clip creation, and StreamLadder handoff.
+- Ad-break timer with start and completion messages in Twitch chat.
+- Tangia OBS Browser Source controls, volume control, mute, reload, and Boss Focus support.
+- Chat command manager for commands such as `!discord`, `!spec`, and `!build`.
+- Safe action and schedule manager. It does not execute arbitrary scripts or programs.
+
+### Spotify song requests
+
+- Spotify OAuth using PKCE.
+- Track search, current playback, active device status, queue display, and skip control.
+- Twitch Channel Point song requests with viewer success or failure feedback.
+- Built-in `!song` and `!playing` commands that can provide the current track link.
+- Viewer-facing OBS Browser Source showing the current song and upcoming queue.
+- Song-request notifications should not add an extra audible alert to the broadcast.
+- Spotify is optional for testers and defaults to No in the simple tester package.
+
+Spotify audio routing remains outside the Handler. John currently separates music from the Twitch VOD
+track in OBS. Technical routing does not itself grant music broadcast rights, so Spotify policy and
+music licensing remain external considerations.
+
+### Performance and reporting
+
+- CPU, RAM, GPU, VRAM, GPU temperature, and recent system history.
+- Top five resource-consuming process groups with plain-language suggestions.
+- Internet latency and failure monitoring with timestamped connection incidents.
+- OBS render, encoder, and dropped-frame health when connected.
+- Stream timeline for scene changes, markers, ads, Twitch events, and performance incidents.
+- Post-stream checklist, performance diagnosis, highlights, report export, and publishing queue.
+- Incoming and outgoing raid history with one-week, two-week, and one-month views.
+- Lightweight local viewer notes.
+
+## Optional integrations
+
+Spotify, Tangia, StreamElements, and TikFinity must remain genuinely optional. Choosing No should
+prevent unnecessary background connection work and mark the related Preflight item as intentionally
+skipped. Optional integrations should not block the user from starting a normal stream.
+
+- **Twitch:** OAuth, Helix API, and EventSub WebSocket.
+- **OBS:** OBS WebSocket 5.x on the local computer.
+- **Spotify:** Spotify Web API with renewable OAuth tokens.
+- **Tangia:** controlled through its OBS Browser Source; Tangia owns its own login.
+- **StreamElements:** SE.Live detection and multistream planning; StreamElements owns stream keys.
+- **TikFinity:** optional read-only local WebSocket bridge for TikTok chat.
+- **YouTube:** official embedded live chat using the livestream URL, without Google OAuth.
+- **StreamLadder:** browser handoff for editing and publishing clips.
+
+Automated YouTube chat posting is deliberately not included because it would require a separate
+Google OAuth application and sensitive YouTube permissions. Twitch remains the platform used for
+scheduled bot messages.
+
+## Owner and tester releases
+
+Owner and tester builds share the same approved functionality. Differences are configuration and
+identity, not separate feature forks.
+
+- The owner build is John's local working installation.
+- Tester builds use a visible **Tester** label and a versioned ZIP filename.
+- Each installation has its own connections, settings, reports, and encrypted credentials.
+- Tester data is not sent to John and cannot be viewed by John.
+- Public OAuth Client IDs may be distributed; client secrets, tokens, passwords, and signing keys may
+  never be included in source control or tester packages.
+- Changes should be tested locally, approved, committed, tagged, and then packaged.
+
+Versions use the visible `.001`, `.002`, and similar format in the application. Git tags use
+`v0.0.1`, `v0.0.2`, and similar semantic equivalents.
+
+## Performance rules
+
+When proposing or reviewing a change, preserve these rules:
+
+1. Prefer event-driven integrations over frequent polling.
+2. Use recursive delayed refreshes so slow requests cannot stack.
+3. Pause card-specific browser polling when its card is collapsed or on an inactive page.
+4. Keep optional services dormant when disabled.
+5. Avoid a frontend framework or large dependency unless it provides a measured benefit.
+6. Never perform expensive process, file-system, or network scans every second.
+7. Do not make OBS perform extra rendering solely to preview its own program output in the Handler.
+8. Keep log files bounded and exclude credentials from logs.
+9. Treat CPU and RAM usage on the stream PC as product requirements, not afterthoughts.
+
+## Privacy and safety requirements
+
+- Never put Twitch, Spotify, Discord, OBS, or other private credentials in GitHub, documentation, or
+  a tester ZIP.
+- Never collect tester telemetry by default.
+- Never imply that John can see another user's settings, reports, viewer notes, or account data.
+- Keep the web server bound to loopback unless a separate security review explicitly approves a
+  network-facing design.
+- Keep arbitrary script execution out of user-configurable automations.
+- Preserve recoverable OBS changes: save current settings before applying a recommendation and offer
+  restoration.
+- Do not silently enable an optional integration.
+- Bot messages should use the product name **John's Twitch Handler**.
+- Avoid double-hyphen punctuation in viewer-facing messages.
+
+## Features intentionally paused or deferred
+
+- World of Warcraft addon profiling and Encounter Highlights remain implemented but disabled behind
+  `Features:WowTools = false`. Preserve the code for possible later use.
+- A low-cost OBS scene preview was discussed but deliberately deferred.
+- TikTok chat through TikFinity is optional and defaults to No.
+- Automated posting to YouTube chat is deferred.
+- Automatic updater and Windows code signing are not implemented yet.
+
+## RPC direction
+
+RPC means local program-to-program commands and events; it does not automatically remove OAuth,
+developer applications, or account permission requirements.
+
+### Discord
+
+Discord is the strongest near-term local RPC candidate. An optional Discord integration could use
+the official Discord desktop/Social SDK for Rich Presence, showing the game, stream state, elapsed
+time, and buttons linking to Twitch or the community. If supported by the SDK and application
+eligibility, read-only local voice state could help Preflight identify mute, deafen, voice mode, or
+push-to-talk problems.
+
+Discord Rich Presence is not the same as a Discord bot. A bot that posts in servers would require a
+bot token, server installation, permissions, and a separate security design. Never place a bot token
+inside a tester package.
+
+### Spotify
+
+The Spotify Web API should remain the primary Windows provider. It supports search, queue, playback
+state, skip, and device selection. A future `IMusicProvider` abstraction could keep the current Web
+API provider while allowing another implementation.
+
+Spotify Soloist offers an official local WebSocket for a headless Linux Spotify Connect device. It
+may be useful later for a dedicated Linux or Raspberry Pi music appliance, but it is not a direct
+replacement for the current Windows integration. Do not ship an unofficial Windows Spotify RPC
+dependency without a licensing, security, and maintenance review.
+
+## GitHub workflow
+
+The local project is connected to:
+
+<https://github.com/ReallyJohnSmith/johns-twitch-handler>
+
+The primary branch is `main`. GitHub Actions builds the .NET solution and checks dashboard JavaScript
+syntax. Feature work should use focused commits or branches, preserve unrelated local changes, and
+avoid committing generated output.
+
+Ignored content includes build directories, logs, local data, environment files, signing keys, and
+generated ZIP packages. GitHub currently stores source and version history; tester ZIPs are generated
+locally until a deliberate public distribution workflow is approved.
+
+## Important source files
+
+- `src/StreamSidekick/Program.cs` - ASP.NET Core setup and local API routes.
+- `src/StreamSidekick/Models.cs` - request and persisted data models.
+- `src/StreamSidekick/Services/` - OBS, Twitch, Spotify, monitoring, storage, and automation services.
+- `src/StreamSidekick/wwwroot/index.html` - dashboard markup.
+- `src/StreamSidekick/wwwroot/styles.css` - themes and layout.
+- `src/StreamSidekick/wwwroot/app.js` - dashboard behavior and refresh scheduling.
+- `src/StreamSidekick/appsettings.json` - safe defaults and feature switches.
+- `docs/ARCHITECTURE.md` - developer-oriented architecture notes.
+- `RELEASE_WORKFLOW.md` - owner/tester release rules.
+- `RELEASE_VERSION.txt` - current tester-package number.
+- `build-tester-package.ps1` - creates the self-contained tester ZIP.
+
+## Normal validation
+
+Before calling a code change complete, run:
+
+```powershell
+dotnet build StreamSidekick.sln --configuration Release --no-restore
+node --check src/StreamSidekick/wwwroot/app.js
+git diff --check
+```
+
+Changes involving persistence or integrations should also exercise the relevant local API and confirm
+that the previous configuration still loads. UI changes should be checked at normal desktop width and
+at the narrow responsive breakpoint.
+
+## Current product questions
+
+These are open design decisions rather than instructions to implement immediately:
+
+- Whether Discord should stop at Rich Presence or eventually include a separately secured server bot.
+- Whether a dedicated Linux Spotify device is worthwhile.
+- Whether tester updates should become automatic.
+- When to purchase a Windows code-signing certificate.
+- Whether source will remain private, become source-available, or eventually become open source.
+- Where public tester downloads will be hosted without exposing private source code.
+
+## How regular ChatGPT should use this document
+
+When helping with this project:
+
+1. Treat John as the product owner and primary user.
+2. Separate suggestions from implemented behavior.
+3. State clearly when a proposal needs a developer app, OAuth permission, cloud service, database, or
+   recurring cost.
+4. Prefer changes that work locally and reduce tester setup.
+5. Preserve all existing owner functionality when making the tester experience simpler.
+6. Keep Spotify, Tangia, StreamElements, TikFinity, YouTube, and future Discord features optional.
+7. Do not invent access to John's computer, OBS, local files, GitHub, or accounts. Regular ChatGPT can
+   analyze uploaded files, but cannot assume it can run or modify the local application.
+8. Ask for the specific current source file when exact implementation advice depends on code that was
+   not uploaded.
+9. Flag privacy, security, platform-policy, and performance consequences before recommending a design.
+10. Use the current version and repository state stated by John if it is newer than this document.
+
+Suggested opening prompt when uploading this file:
+
+> This README describes my current application, John's Twitch Handler. Use it as project context.
+> Distinguish existing features from future ideas, preserve the privacy and performance rules, and
+> tell me when you need a current source file before giving implementation-specific advice.
