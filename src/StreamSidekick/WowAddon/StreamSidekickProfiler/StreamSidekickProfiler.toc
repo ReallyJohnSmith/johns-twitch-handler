@@ -1,0 +1,8 @@
+## Interface: 120007, 50504, 11508
+## Title: John's Twitch Handler Profiler
+## Notes: Exports addon performance metrics and helps enable John's Twitch Handler combat-log event bridge.
+## Author: John's Twitch Handler
+## Version: 0.2.0
+## SavedVariables: StreamSidekickProfilerDB
+
+StreamSidekickProfiler.lua

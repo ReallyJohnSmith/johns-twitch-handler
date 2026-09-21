@@ -1,0 +1,30 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-build:
+    runs-on: windows-latest
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v7
+
+      - name: Install .NET SDK
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: 9.0.x
+
+      - name: Restore
+        run: dotnet restore StreamSidekick.sln
+
+      - name: Build release configuration
+        run: dotnet build StreamSidekick.sln --configuration Release --no-restore
+
+      - name: Check dashboard JavaScript syntax
+        run: node --check src/StreamSidekick/wwwroot/app.js

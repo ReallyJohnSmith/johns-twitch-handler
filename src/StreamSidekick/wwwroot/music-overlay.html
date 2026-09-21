@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>John's Twitch Handler · Music Queue Overlay</title>
+  <link rel="stylesheet" href="music-overlay.css">
+</head>
+<body>
+  <!-- Add this page to OBS as a transparent Browser Source; it has no audio or video capture. -->
+  <main class="overlay" aria-live="polite">
+    <section id="boss-focus-banner" class="boss-focus-banner" aria-hidden="true">
+      <div class="boss-focus-pulse" aria-hidden="true"></div>
+      <div>
+        <strong>BOSS FOCUS</strong>
+        <span>Tangia is muted during this fight</span>
+      </div>
+    </section>
+    <header>
+      <div class="music-icon">♫</div>
+      <div>
+        <span>JOHN'S TWITCH HANDLER</span>
+        <h1>Viewer song queue</h1>
+      </div>
+      <div id="connection-state" class="connection-state">Connecting…</div>
+    </header>
+
+    <section id="now-playing" class="now-playing">
+      <div class="label">NOW PLAYING</div>
+      <strong id="current-title">Waiting for Spotify…</strong>
+      <small id="current-detail">Open Spotify and start playback.</small>
+    </section>
+
+    <section class="up-next">
+      <div class="section-heading"><span>UP NEXT</span><small id="queue-summary">Viewer requests</small></div>
+      <div id="queue-list" class="queue-list">
+        <div class="empty">The next viewer requests will appear here.</div>
+      </div>
+    </section>
+  </main>
+  <script src="music-overlay.js"></script>
+</body>
+</html>

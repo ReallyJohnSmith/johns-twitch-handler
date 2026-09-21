@@ -1,0 +1,3060 @@
+// Lightweight DOM helpers keep the dashboard dependency-free and easy to run locally.
+const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => [...document.querySelectorAll(selector)];
+
+// This object is the browser's latest view of server state. Secrets never belong here or in localStorage.
+const state = {
+  obs: { connected: false, scenes: [], currentScene: null },
+  audio: { connected: false, inputs: [] },
+  audioInteracting: false,
+  setup: null,
+  preflight: null,
+  report: null,
+  optimizer: null,
+  optimizerBusy: false,
+  autoEndingSession: false,
+  sessionActive: false,
+  channelName: localStorage.getItem("streamsidekick.channel") || "",
+  wow: null,
+  wowPresets: [],
+  wowEvents: null,
+  system: null,
+  internet: null,
+  spotify: null,
+  spotifyEnabled: true,
+  spotifyResults: [],
+  tangia: null,
+  tangiaEnabled: true,
+  streamElements: null,
+  streamElementsEnabled: true,
+  streamElementsConfirmed: false,
+  tikFinity: null,
+  tikFinityEnabled: false,
+  manualPreflightItems: [],
+  ads: null,
+  chatChime: null,
+  chatCommands: [],
+  automations: [],
+  raids: { channels: [], history: [], warning: null },
+  raidDays: Number(localStorage.getItem("streamsidekick.raidDays")) || 31,
+  youtubeVideoId: localStorage.getItem("streamsidekick.youtubeVideoId") || "",
+  viewerNotes: [],
+  demo: {
+    active: false,
+    phase: "before",
+    status: "intro",
+    incident: null,
+    runId: 0,
+    gpu: 68,
+    renderMissed: 0.03,
+    latency: 32,
+    timeline: []
+  },
+  wowEditionId: localStorage.getItem("streamsidekick.wowEdition") || "classic",
+  wowProfileId: localStorage.getItem("streamsidekick.wowProfile") || ""
+};
+
+async function api(path, options = {}) {
+  let response;
+  try {
+    response = await fetch(path, {
+      ...options,
+      headers: { "Content-Type": "application/json", ...(options.headers || {}) }
+    });
+  } catch {
+    throw new Error("John's Twitch Handler is not running. Start “John's Twitch Handler.cmd”, wait for the dashboard to open, then try again.");
+  }
+  const text = await response.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; }
+  catch { data = text || null; }
+  if (!response.ok) throw new Error(data?.error || `Request failed (${response.status})`);
+  return data;
+}
+
+// --- Shared UI feedback and preflight ---------------------------------------------------------
+
+function toast(message, error = false) {
+  const element = $("#toast");
+  element.textContent = message;
+  element.classList.toggle("error", error);
+  element.classList.add("show");
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => element.classList.remove("show"), 3600);
+}
+
+function setCheck(id, ok, detail, actionLabel, mode = ok ? "ok" : "warn") {
+  const row = $(id);
+  row.classList.toggle("ok", mode === "ok");
+  row.classList.toggle("warn", mode === "warn");
+  row.classList.toggle("skipped", mode === "skipped");
+  row.querySelector(".check-icon").textContent = mode === "skipped" ? "−" : ok ? "✓" : "!";
+  if (detail) row.querySelector("small").textContent = detail;
+  const button = row.querySelector("button");
+  if (button && actionLabel) button.textContent = actionLabel;
+}
+
+function savedPreference(key, fallback) {
+  const value = localStorage.getItem(key);
+  return value == null ? fallback : value === "true";
+}
+
+const manualPreflightStorageKey = "johns-handler.manual-preflight";
+const preflightVisibilityStorageKey = "johns-handler.preflight-hidden";
+let hiddenPreflightRows = new Set();
+
+function loadManualPreflightItems() {
+  const saved = localStorage.getItem(manualPreflightStorageKey);
+  if (saved == null) {
+    state.manualPreflightItems = [{ id: "get-coffee", label: "Get Coffee", checked: false }];
+    saveManualPreflightItems();
+    return;
+  }
+  try {
+    const items = JSON.parse(saved);
+    state.manualPreflightItems = Array.isArray(items)
+      ? items.filter(item => item && typeof item.id === "string" && typeof item.label === "string").slice(0, 12).map(item => ({
+          id: item.id,
+          label: item.label.trim().slice(0, 60),
+          checked: item.checked === true
+        })).filter(item => item.label)
+      : [];
+  } catch {
+    state.manualPreflightItems = [{ id: "get-coffee", label: "Get Coffee", checked: false }];
+    saveManualPreflightItems();
+  }
+}
+
+function saveManualPreflightItems() {
+  // These reminders are intentionally browser-local because they have no OBS or account wiring.
+  localStorage.setItem(manualPreflightStorageKey, JSON.stringify(state.manualPreflightItems));
+}
+
+function renderManualPreflightItems() {
+  const list = $("#manual-preflight-items");
+  if (!list) return;
+  list.innerHTML = state.manualPreflightItems.map(item => `<label class="check-row manual ${item.checked ? "ok" : "warn"}" data-manual-preflight-id="${escapeHtml(item.id)}">
+    <input class="manual-preflight-checkbox" type="checkbox" ${item.checked ? "checked" : ""} aria-label="${escapeHtml(item.label)} complete">
+    <div><strong>${escapeHtml(item.label)}</strong><small>Manual reminder</small></div>
+    <button class="manual-preflight-remove" type="button" aria-label="Remove ${escapeHtml(item.label)}" title="Remove reminder">×</button>
+  </label>`).join("");
+  updateDashboardBorder();
+}
+
+function addManualPreflightItem() {
+  const input = $("#manual-preflight-name");
+  const label = input.value.trim();
+  if (!label) { toast("Enter a preflight reminder first.", true); return; }
+  if (state.manualPreflightItems.length >= 12) { toast("Preflight supports up to 12 manual reminders.", true); return; }
+  if (state.manualPreflightItems.some(item => item.label.toLowerCase() === label.toLowerCase())) {
+    toast("That reminder is already in Preflight.", true);
+    return;
+  }
+  state.manualPreflightItems.push({ id: crypto.randomUUID?.() || `manual-${Date.now()}`, label: label.slice(0, 60), checked: false });
+  input.value = "";
+  saveManualPreflightItems();
+  renderManualPreflightItems();
+  toast(`Added “${label.slice(0, 60)}” to Preflight.`);
+}
+
+function loadPreflightVisibility() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(preflightVisibilityStorageKey) || "[]");
+    hiddenPreflightRows = new Set(Array.isArray(saved) ? saved.filter(id => typeof id === "string") : []);
+  } catch {
+    hiddenPreflightRows = new Set();
+  }
+  applyPreflightVisibility();
+}
+
+function builtInPreflightRows() {
+  return $$("#preflight-check-list > .check-row[id]");
+}
+
+function applyPreflightVisibility() {
+  builtInPreflightRows().forEach(row => { row.hidden = hiddenPreflightRows.has(row.id); });
+}
+
+function renderPreflightVisibilityList() {
+  const list = $("#preflight-visibility-list");
+  list.innerHTML = builtInPreflightRows().map(row => {
+    const label = row.querySelector("strong")?.textContent?.trim() || row.id;
+    return `<label><input type="checkbox" data-preflight-visible="${escapeHtml(row.id)}" ${hiddenPreflightRows.has(row.id) ? "" : "checked"}> <span>${escapeHtml(label)}</span></label>`;
+  }).join("");
+}
+
+function savePreflightVisibility() {
+  localStorage.setItem(preflightVisibilityStorageKey, JSON.stringify([...hiddenPreflightRows]));
+  applyPreflightVisibility();
+}
+
+function applyOptionalIntegrationState() {
+  const spotifyPanel = document.querySelector('[data-panel-id="spotify"]');
+  const tangiaPanel = document.querySelector('[data-panel-id="tangia"]');
+  const streamElementsPanel = document.querySelector('[data-panel-id="streamelements"]');
+  const tikFinityPanel = document.querySelector('[data-panel-id="tikfinity"]');
+  if (spotifyPanel) spotifyPanel.hidden = !state.spotifyEnabled;
+  if (tangiaPanel) tangiaPanel.hidden = !state.tangiaEnabled;
+  if (streamElementsPanel) streamElementsPanel.hidden = !state.streamElementsEnabled;
+  if (tikFinityPanel) tikFinityPanel.hidden = !state.tikFinityEnabled;
+  $("#spotify-settings").hidden = !state.spotifyEnabled;
+  const choices = {
+    spotify: state.spotifyEnabled,
+    tangia: state.tangiaEnabled,
+    streamelements: state.streamElementsEnabled,
+    tikfinity: state.tikFinityEnabled
+  };
+  $$('[data-integration-choice]').forEach(button => {
+    const selected = choices[button.dataset.integrationChoice] === (button.dataset.enabled === "true");
+    button.classList.toggle("selected", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  });
+}
+
+async function loadSetupConfiguration() {
+  state.setup = await api("/api/setup");
+  const releasePill = $("#release-channel-pill");
+  const releaseLabel = state.setup.releaseLabel || "Owner build";
+  const releaseVersion = state.setup.releaseVersion || "development";
+  releasePill.textContent = `Version ${releaseVersion} · ${releaseLabel}`;
+  releasePill.title = `${releaseLabel} · ${releaseVersion}`;
+  releasePill.classList.toggle("tester", state.setup.releaseChannel?.toLowerCase() === "tester");
+  document.title = state.setup.releaseChannel?.toLowerCase() === "tester"
+    ? `John's Twitch Handler · ${releaseLabel} ${releaseVersion}`
+    : `John's Twitch Handler · ${releaseVersion}`;
+  state.spotifyEnabled = savedPreference("streamsidekick.spotifyEnabled", state.setup.spotifyEnabledByDefault !== false);
+  state.tangiaEnabled = savedPreference("streamsidekick.tangiaEnabled", state.setup.tangiaEnabledByDefault !== false);
+  state.streamElementsEnabled = savedPreference("streamsidekick.streamElementsEnabled", state.setup.streamElementsEnabledByDefault !== false);
+  state.streamElementsConfirmed = savedPreference("streamsidekick.streamElementsConfirmed", false);
+  state.tikFinityEnabled = savedPreference("streamsidekick.tikFinityEnabled", state.setup.tikFinityEnabledByDefault === true);
+  const wowToolsEnabled = state.setup.wowToolsEnabled === true;
+  document.querySelector('[data-panel-id="wow-addons"]').hidden = !wowToolsEnabled;
+  document.querySelector('[data-panel-id="wow-events"]').hidden = !wowToolsEnabled;
+  applyOptionalIntegrationState();
+  // Tell the local service about this browser's preference. A default No means no socket is opened.
+  state.tikFinity = await api("/api/tikfinity/enabled", {
+    method: "PUT",
+    body: JSON.stringify({ enabled: state.tikFinityEnabled })
+  });
+  renderCombinedChat();
+  renderTikFinity();
+}
+
+async function setOptionalIntegration(name, enabled) {
+  const integrations = {
+    spotify: { key: "spotifyEnabled", label: "Spotify", refresh: refreshSpotify },
+    tangia: { key: "tangiaEnabled", label: "Tangia", refresh: refreshTangia },
+    streamelements: { key: "streamElementsEnabled", label: "StreamElements", refresh: refreshStreamElements },
+    tikfinity: { key: "tikFinityEnabled", label: "TikFinity", refresh: refreshTikFinity }
+  };
+  const integration = integrations[name];
+  if (!integration) return;
+  const { key, label, refresh } = integration;
+  if (state[key] === enabled) return;
+  state[key] = enabled;
+  localStorage.setItem(`streamsidekick.${key}`, String(state[key]));
+  applyOptionalIntegrationState();
+  if (name === "tikfinity") {
+    state.tikFinity = await api("/api/tikfinity/enabled", {
+      method: "PUT",
+      body: JSON.stringify({ enabled: state.tikFinityEnabled })
+    });
+    renderCombinedChat();
+    renderTikFinity();
+  }
+  await refreshPreflight();
+  if (state[key]) await refresh();
+  toast(`${label} ${state[key] ? "enabled" : "skipped"} on this computer.`);
+}
+
+function updateDashboardBorder() {
+  const live = Boolean(state.obs?.streamActive);
+  const preflight = state.preflight;
+  const spotifyReady = !state.spotifyEnabled || Boolean(state.spotify?.connected && state.spotify?.playback);
+  const musicOverlayReady = !state.spotifyEnabled || Boolean(preflight?.musicOverlayConfigured);
+  const tangiaReady = !state.tangiaEnabled || Boolean(preflight?.tangiaConfigured);
+  const streamElementsReady = !state.streamElementsEnabled || Boolean(preflight?.streamElementsReady);
+  const tikFinityReady = !state.tikFinityEnabled || Boolean(preflight?.tikFinityReady);
+  const manualItemsReady = state.manualPreflightItems.every(item => item.checked);
+  // An intentionally disabled integration is ready by definition. This preserves the full feature
+  // set for John while keeping a tester's border honest about only the tools they chose to use.
+  const allReady = Boolean(
+    preflight?.obsConnected
+    && preflight?.microphoneReady
+    && preflight?.nvidiaBroadcast?.running
+    && preflight?.twitchRewardsReady
+    && spotifyReady
+    && musicOverlayReady
+    && tangiaReady
+    && streamElementsReady
+    && tikFinityReady
+    && manualItemsReady
+  );
+
+  const border = $("#status-border");
+  border.className = `status-border ${live ? "live" : allReady ? "ready" : "warning"}`;
+}
+
+async function refreshPreflight() {
+  try {
+    state.preflight = await api(`/api/preflight?spotifyEnabled=${state.spotifyEnabled}&tangiaEnabled=${state.tangiaEnabled}&streamElementsEnabled=${state.streamElementsEnabled}&streamElementsConfirmed=${state.streamElementsConfirmed}&tikFinityEnabled=${state.tikFinityEnabled}`);
+    state.sessionActive = state.preflight.sessionActive;
+    setCheck("#check-obs", state.preflight.obsConnected, state.preflight.obsConnected ? "Connected and ready" : "Connection required", state.preflight.obsConnected ? "Ready" : "Connect");
+    const microphone = state.preflight.microphone || {};
+    const microphoneReady = Boolean(state.preflight.microphoneReady);
+    setCheck(
+      "#check-microphone",
+      microphoneReady,
+      microphone.status || "Checking the OBS microphone mute state",
+      microphoneReady ? "Ready" : !microphone.connected ? "Connect" : microphone.found ? "Unmute" : "Mixer");
+    const nvidia = state.preflight.nvidiaBroadcast;
+    setCheck("#check-nvidia", nvidia.running, nvidia.running ? "Running. Voice and camera effects are ready." : nvidia.installed ? "Installed, but not running" : "NVIDIA Broadcast not found", nvidia.running ? "Running" : "Open");
+    const twitchReady = Boolean(state.preflight.twitchRewardsReady);
+    const twitchDetail = twitchReady
+      ? "Alerts, Channel Points, and feedback are connected"
+      : state.preflight.twitchConfigured
+        ? state.preflight.twitchStatus || "Configured, but Twitch events are disconnected"
+        : "Connect Twitch for alerts and viewer song requests";
+    setCheck("#check-twitch", twitchReady, twitchDetail, twitchReady ? "Ready" : "Set up");
+    if (!state.spotifyEnabled) renderSpotifyPreflight(null);
+    setCheck(
+      "#check-music-overlay",
+      !state.spotifyEnabled || Boolean(state.preflight.musicOverlayConfigured),
+      !state.spotifyEnabled ? "Skipped on this computer" : state.preflight.musicOverlayStatus || "Add the music overlay to OBS as a Browser Source",
+      !state.spotifyEnabled ? "Skipped" : state.preflight.musicOverlayConfigured ? "Ready" : "Copy URL",
+      !state.spotifyEnabled ? "skipped" : undefined);
+    setCheck(
+      "#check-tangia",
+      !state.tangiaEnabled || Boolean(state.preflight.tangiaConfigured),
+      !state.tangiaEnabled ? "Skipped on this computer" : state.preflight.tangiaStatus || "Add Tangia to OBS as a Browser Source",
+      !state.tangiaEnabled ? "Skipped" : state.preflight.tangiaConfigured ? "Ready" : "Open",
+      !state.tangiaEnabled ? "skipped" : undefined);
+    const streamElements = state.preflight.streamElements || {};
+    setCheck(
+      "#check-streamelements",
+      !state.streamElementsEnabled || Boolean(state.preflight.streamElementsReady),
+      !state.streamElementsEnabled
+        ? "Skipped on this computer"
+        : streamElements.installed && !state.streamElementsConfirmed
+          ? "SE.Live detected. Confirm the selected outputs are connected in OBS."
+          : streamElements.status || "Install SE.Live to configure multistream outputs",
+      !state.streamElementsEnabled ? "Skipped" : state.preflight.streamElementsReady ? "Ready" : streamElements.installed ? "Confirm" : "Install",
+      !state.streamElementsEnabled ? "skipped" : undefined);
+    const tikFinity = state.preflight.tikFinity || {};
+    setCheck(
+      "#check-tikfinity",
+      !state.tikFinityEnabled || Boolean(state.preflight.tikFinityReady),
+      !state.tikFinityEnabled ? "Skipped on this computer" : tikFinity.status || "Open TikFinity to receive TikTok chat",
+      !state.tikFinityEnabled ? "Skipped" : state.preflight.tikFinityReady ? "Ready" : "Open app",
+      !state.tikFinityEnabled ? "skipped" : undefined);
+    updateDashboardBorder();
+    renderSession();
+    renderChatCommands();
+  } catch (error) {
+    state.preflight = null;
+    updateDashboardBorder();
+    toast(error.message, true);
+  }
+}
+
+async function refreshObs() {
+  try {
+    const wasLive = state.obs?.streamActive === true;
+    const snapshot = await api("/api/obs/status");
+    state.obs = snapshot;
+    renderObs();
+    if (wasLive && snapshot.connected && snapshot.streamActive === false && state.sessionActive)
+      endTrackedSession(true);
+  } catch (error) {
+    state.obs = { connected: false, scenes: [], currentScene: null, error: error.message };
+    renderObs();
+  }
+}
+
+// --- OBS scenes and audio --------------------------------------------------------------------
+
+function renderObs() {
+  const pill = $("#obs-pill");
+  pill.className = `pill ${state.obs.connected ? "online" : "offline"}`;
+  pill.innerHTML = `<i></i> OBS ${state.obs.connected ? "connected" : "offline"}`;
+  const live = state.obs.streamActive;
+  // A page-level border makes live/readiness state visible even when Preflight is off-screen.
+  updateDashboardBorder();
+  $("#live-state").textContent = live ? "● LIVE" : state.obs.connected ? "Connected" : "Not connected";
+  $("#live-state").style.color = live ? "var(--red)" : "";
+  $("#save-replay-only").disabled = !state.obs.connected;
+  $("#obs-health").textContent = state.obs.connected
+    ? `OBS ${Number(state.obs.activeFps || 0).toFixed(1)} FPS · render missed ${Number(state.obs.renderSkippedPercent || 0).toFixed(2)}% · encoder skipped ${Number(state.obs.outputSkippedPercent || 0).toFixed(2)}%`
+    : "Connect OBS to include render and encoder health.";
+  evaluateHeadroom();
+
+  const grid = $("#scene-grid");
+  if (!state.obs.connected || !state.obs.scenes?.length) {
+    grid.className = "scene-grid empty-state";
+    grid.textContent = state.obs.error || "Connect OBS to load scenes.";
+    return;
+  }
+
+  grid.className = "scene-grid";
+  grid.innerHTML = state.obs.scenes.map((scene, index) =>
+    `<button class="scene-button ${scene === state.obs.currentScene ? "active" : ""}" data-scene="${escapeHtml(scene)}" title="${escapeHtml(scene)}">${index < 9 ? `<span>${index + 1}</span> ` : ""}${escapeHtml(scene)}</button>`
+  ).join("");
+  $$("[data-scene]").forEach(button => button.addEventListener("click", () => switchScene(button.dataset.scene)));
+}
+
+async function refreshAudio(force = false) {
+  if (state.audioInteracting && !force) return;
+  try {
+    state.audio = await api("/api/obs/audio");
+  } catch (error) {
+    state.audio = { connected: false, inputs: [], error: error.message };
+  }
+  renderAudioMixer();
+}
+
+function formatAudioDb(value) {
+  return Number(value) <= -59.5 ? "−∞ dB" : `${Number(value).toFixed(1)} dB`;
+}
+
+function renderAudioMixer() {
+  const mixer = $("#audio-mixer");
+  const inputs = state.audio.inputs || [];
+  $("#audio-state").textContent = state.audio.connected ? `${inputs.length} source${inputs.length === 1 ? "" : "s"}` : "Not connected";
+  if (!state.audio.connected || !inputs.length) {
+    mixer.className = "audio-mixer empty-state";
+    mixer.dataset.structure = "";
+    mixer.textContent = state.audio.error || (state.audio.connected ? "No OBS audio sources found." : "Connect OBS to control its audio sources.");
+    return;
+  }
+
+  mixer.className = "audio-mixer";
+  const structure = JSON.stringify(inputs.map(input => input.inputName));
+  if (mixer.dataset.structure !== structure) {
+    // OBS meters update every second. Build controls only when sources are added, removed, or reordered;
+    // replacing dozens of live range inputs every tick caused unnecessary layout and garbage collection.
+    mixer.innerHTML = inputs.map(input => {
+      const source = escapeHtml(input.inputName);
+      return `<div class="audio-source" data-audio-source="${source}">
+      <div class="audio-source-top"><strong title="${source}">${source}</strong><button class="mute-button" data-audio-mute="${source}"></button></div>
+      <div class="audio-control-line">
+        <span class="audio-meter" aria-hidden="true"><i></i></span>
+        <input type="range" min="-60" max="6" step="0.5" data-audio-volume="${source}" aria-label="${source} volume">
+        <output></output>
+      </div>
+    </div>`;
+    }).join("");
+    mixer.dataset.structure = structure;
+  }
+
+  const rows = new Map($$("#audio-mixer .audio-source").map(row => [row.dataset.audioSource, row]));
+  inputs.forEach(input => {
+    const row = rows.get(input.inputName);
+    if (!row) return;
+    const volume = Math.max(-60, Math.min(6, Number(input.volumeDb)));
+    const fader = ((volume + 60) / 66 * 100).toFixed(1);
+    const meter = Math.max(0, Math.min(100, Number(input.meterPercent) || 0));
+    const button = row.querySelector("[data-audio-mute]");
+    const slider = row.querySelector("[data-audio-volume]");
+    row.querySelector(".audio-meter i").style.width = `${meter}%`;
+    button.disabled = false;
+    button.classList.toggle("muted", input.muted);
+    button.dataset.muted = String(input.muted);
+    button.textContent = input.muted ? "Unmute" : "Mute";
+    button.setAttribute("aria-label", `${input.muted ? "Unmute" : "Mute"} ${input.inputName}`);
+    slider.value = String(volume);
+    slider.style.setProperty("--fader", `${fader}%`);
+    slider.nextElementSibling.textContent = formatAudioDb(volume);
+  });
+}
+
+// --- Tangia OBS Browser Source ---------------------------------------------------------------
+
+async function refreshTangia() {
+  if (!state.tangiaEnabled) {
+    state.tangia = { connected: false, found: false, status: "Tangia is disabled on this computer." };
+    return;
+  }
+  try {
+    state.tangia = await api("/api/tangia");
+  } catch (error) {
+    state.tangia = { connected: false, found: false, status: error.message };
+  }
+  renderTangia();
+}
+
+function renderTangia() {
+  const tangia = state.tangia || {};
+  const ready = Boolean(tangia.connected && tangia.found);
+  $("#tangia-state").textContent = ready ? tangia.bossFocusActive ? "Boss Focus" : "Ready" : "Setup needed";
+  $("#tangia-summary").textContent = tangia.status || "Add Tangia to OBS as a Browser Source.";
+  ["#tangia-visibility", "#tangia-mute", "#tangia-reload", "#tangia-boss-focus", "#tangia-volume"]
+    .forEach(selector => { $(selector).disabled = !ready; });
+  if (!ready) return;
+  $("#tangia-visibility").textContent = tangia.visible === false ? "Show source" : "Hide source";
+  $("#tangia-visibility").disabled = tangia.visible == null;
+  $("#tangia-mute").textContent = tangia.muted ? "Unmute" : "Mute";
+  $("#tangia-boss-focus").textContent = tangia.bossFocusActive ? "End Boss Focus" : "Boss Focus";
+  $("#tangia-volume").value = Number(tangia.volumeDb || 0);
+  $("#tangia-volume-value").textContent = formatAudioDb(tangia.volumeDb || 0);
+}
+
+async function updateTangia(path, body = null, successMessage = null) {
+  try {
+    state.tangia = await api(path, { method: "POST", ...(body ? { body: JSON.stringify(body) } : {}) });
+    renderTangia();
+    await refreshPreflight();
+    if (successMessage) toast(successMessage);
+  } catch (error) { toast(error.message, true); }
+}
+
+// --- StreamElements and multistream planning ------------------------------------------------
+
+const multistreamDestinationsKey = "streamsidekick.multistreamDestinations";
+const multistreamBitrateKey = "streamsidekick.multistreamBitrate";
+
+function readMultistreamDestinations() {
+  const fallback = { twitch: true, youtube: false, tiktok: false };
+  try {
+    return { ...fallback, ...JSON.parse(localStorage.getItem(multistreamDestinationsKey) || "{}") };
+  } catch {
+    return fallback;
+  }
+}
+
+function renderMultistreamPlan() {
+  const destinations = readMultistreamDestinations();
+  $$('[data-multistream-destination]').forEach(input => {
+    input.checked = Boolean(destinations[input.dataset.multistreamDestination]);
+  });
+
+  const savedBitrate = Number(localStorage.getItem(multistreamBitrateKey));
+  const bitrate = [2500, 3500, 4500, 6000].includes(savedBitrate) ? savedBitrate : 3500;
+  $("#multistream-bitrate").value = String(bitrate);
+  const outputCount = Object.values(destinations).filter(Boolean).length;
+  const combinedMbps = outputCount * bitrate / 1000;
+  $("#multistream-output-count").textContent = String(outputCount);
+  $("#multistream-combined-bitrate").textContent = `${combinedMbps.toFixed(1)} Mbps`;
+  $("#multistream-upload-target").textContent = outputCount
+    ? `${(combinedMbps * 1.5).toFixed(1)} to ${(combinedMbps * 2).toFixed(1)} Mbps`
+    : "No outputs selected";
+}
+
+async function refreshStreamElements() {
+  if (!state.streamElementsEnabled) {
+    state.streamElements = { installed: false, status: "StreamElements is disabled on this computer." };
+    renderStreamElements();
+    return;
+  }
+  try {
+    state.streamElements = await api("/api/streamelements/status");
+  } catch (error) {
+    state.streamElements = { installed: false, status: error.message };
+  }
+  renderStreamElements();
+}
+
+function renderStreamElements() {
+  const streamElements = state.streamElements || {};
+  $("#streamelements-state").textContent = streamElements.installed
+    ? state.streamElementsConfirmed ? "Ready" : streamElements.obsRunning ? "Confirm outputs" : "OBS closed"
+    : "Setup needed";
+  $("#streamelements-summary").textContent = streamElements.status || "Install SE.Live to add and manage streaming destinations inside OBS.";
+  $("#streamelements-confirmed").checked = state.streamElementsConfirmed;
+  $("#streamelements-confirmed").disabled = !streamElements.installed;
+  renderMultistreamPlan();
+}
+
+// TikFinity owns the TikTok connection. This refresh reads only the Handler's local in-memory copy
+// and makes no TikTok request of its own.
+async function refreshTikFinity() {
+  if (!state.tikFinityEnabled) {
+    state.tikFinity = { enabled: false, connected: false, status: "Optional integration is turned off.", messages: [] };
+    renderTikFinity();
+    return;
+  }
+  try {
+    state.tikFinity = await api("/api/tikfinity/status");
+  } catch (error) {
+    state.tikFinity = { enabled: true, connected: false, status: error.message, messages: [] };
+  }
+  renderTikFinity();
+}
+
+function renderTikFinity() {
+  const snapshot = state.tikFinity || {};
+  const stateLabel = $("#tikfinity-state");
+  const summary = $("#tikfinity-summary");
+  if (stateLabel) stateLabel.textContent = !state.tikFinityEnabled ? "Turned off" : snapshot.connected ? "Connected" : "Waiting";
+  if (summary) summary.textContent = snapshot.status || "Waiting for TikFinity's local chat feed.";
+
+  const messages = Array.isArray(snapshot.messages) ? snapshot.messages.slice(-50) : [];
+  const html = messages.length
+    ? messages.map(message => `<div class="tikfinity-message"><strong>${escapeHtml(message.displayName || message.userName || "TikTok viewer")}</strong><span>${escapeHtml(message.text || "")}</span><time>${escapeHtml(formatAlertTime(message.at))}</time></div>`).join("")
+    : "No TikTok messages received.";
+  [$("#tikfinity-card-list"), $("#tikfinity-chat-list")].filter(Boolean).forEach(list => {
+    list.className = `tikfinity-chat-list${messages.length ? "" : " empty-state"}`;
+    list.innerHTML = html;
+    if (messages.length) list.scrollTop = list.scrollHeight;
+  });
+}
+
+// --- Twitch ad timing ------------------------------------------------------------------------
+
+async function refreshAds() {
+  try {
+    state.ads = await api("/api/ads/status");
+    renderAds();
+  } catch (error) {
+    $("#ads-state").textContent = "Unavailable";
+    $("#ad-message").textContent = error.message;
+  }
+}
+
+function renderAds() {
+  const ads = state.ads;
+  const countdown = $("#ad-countdown");
+  const remaining = ads?.active && ads.endsAt
+    ? Math.max(0, Math.ceil((new Date(ads.endsAt).valueOf() - Date.now()) / 1000))
+    : 0;
+  const active = remaining > 0;
+  countdown.classList.toggle("active", active);
+  countdown.querySelector("strong").textContent = formatOffset(remaining);
+  countdown.querySelector("span").textContent = active
+    ? `${ads.source} · ${ads.durationSeconds} seconds total`
+    : ads?.status || "No ad break is running.";
+  $("#ads-state").textContent = active ? "Running" : "Idle";
+}
+
+async function startAdBreak(startOnTwitch) {
+  const durationSeconds = Number($("#ad-duration").value);
+  const button = startOnTwitch ? $("#start-twitch-ad") : $("#start-ad-timer");
+  try {
+    button.disabled = true;
+    const result = await api("/api/ads/start", {
+      method: "POST",
+      body: JSON.stringify({ durationSeconds, startOnTwitch })
+    });
+    state.ads = result.countdown || result;
+    renderAds();
+    $("#ad-message").textContent = startOnTwitch
+      ? result.message || "Twitch accepted the ad and chat was notified."
+      : "Manual timer started and chat was notified. No Twitch ad was requested.";
+    await refreshReport(false);
+    toast(startOnTwitch ? "Twitch ad break started." : "Ad timer started.");
+  } catch (error) {
+    $("#ad-message").textContent = error.message;
+    toast(error.message, true);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+// --- Session tracking and reports -------------------------------------------------------------
+
+function renderSession() {
+  const active = state.sessionActive;
+  const pill = $("#session-pill");
+  pill.className = `pill ${active ? "live" : "neutral"}`;
+  pill.innerHTML = `<i></i> ${active ? "Session active" : "No session"}`;
+  $("#session-toggle").textContent = active ? "End & report" : "Start session";
+  $("#stream-title").disabled = active;
+  $("#session-title").textContent = active ? (state.report?.title || "Session in progress") : "Ready when you are";
+  $("#session-subtitle").textContent = active ? "Markers, scene changes, ads, and logged interactions are being recorded." : "Connect OBS, run the preflight, and start tracking the show.";
+}
+
+function renderReport(report) {
+  state.report = report;
+  $("#metric-duration").textContent = report ? Math.round(report.durationMinutes) : "0";
+  $("#metric-highlights").textContent = report?.highlightCount ?? "0";
+  $("#metric-scenes").textContent = report?.sceneChangeCount ?? "0";
+  $("#report-performance").textContent = report?.performanceSummary || "Performance diagnosis appears after a tracked session.";
+  renderPostStreamChecklist(report);
+  renderStreamTimeline(report);
+  const list = $("#marker-list");
+  if (!report?.markers?.length) {
+    list.className = "marker-list empty-state";
+    list.textContent = "Your marked moments will appear here.";
+  } else {
+    list.className = "marker-list";
+    list.innerHTML = [...report.markers].reverse().map(marker => {
+      const link = marker.twitchEditUrl ? `<a href="${escapeHtml(marker.twitchEditUrl)}" target="_blank" rel="noreferrer">Edit clip ↗</a>` : "";
+      return `<div class="marker-row"><span class="marker-time">${formatOffset(marker.offsetSeconds)}</span><div><strong>${escapeHtml(marker.title)}</strong><small>${escapeHtml(marker.kind)}${marker.note ? ` · ${escapeHtml(marker.note)}` : ""}</small></div>${link}</div>`;
+    }).join("");
+  }
+  renderClipPublishingQueue(report);
+
+  // Keep this timeline focused on stream-impacting automation and connectivity. Routine scene
+  // changes are already summarized above, so duplicating every one would hide useful incidents.
+  const activities = (report?.activities || []).filter(activity => ["tangia", "ad", "internet"].includes(activity.type));
+  const activityList = $("#session-activity-list");
+  if (!activities.length) {
+    activityList.className = "marker-list empty-state";
+    activityList.textContent = "Tangia interactions, ad breaks, and connection hiccups will appear here.";
+  } else {
+    const startedAt = new Date(report.startedAt).valueOf();
+    activityList.className = "marker-list";
+    activityList.innerHTML = [...activities].reverse().map(activity => {
+      const offset = Math.max(0, (new Date(activity.at).valueOf() - startedAt) / 1000);
+      return `<div class="marker-row"><span class="marker-time">${formatOffset(offset)}</span><div><strong>${escapeHtml(activity.detail)}</strong><small>${escapeHtml(activity.type)}</small></div></div>`;
+    }).join("");
+  }
+}
+
+const clipPublishingStorageKey = "johns-handler.clip-publishing";
+
+function readClipPublishingState() {
+  try {
+    const value = JSON.parse(localStorage.getItem(clipPublishingStorageKey) || "{}");
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+function publicTwitchClipUrl(marker) {
+  return marker?.twitchClipId ? `https://clips.twitch.tv/${encodeURIComponent(marker.twitchClipId)}` : "";
+}
+
+function renderClipPublishingQueue(report) {
+  const queue = $("#clip-publishing-queue");
+  const clips = (report?.markers || []).filter(marker => marker.twitchClipId);
+  if (!clips.length) {
+    queue.className = "clip-publishing-queue empty-state";
+    queue.textContent = "Create a Twitch clip to prepare it for TikTok and YouTube.";
+    return;
+  }
+
+  const publishing = readClipPublishingState();
+  queue.className = "clip-publishing-queue";
+  queue.innerHTML = [...clips].reverse().map(marker => {
+    const status = publishing[marker.twitchClipId] || {};
+    const clipUrl = publicTwitchClipUrl(marker);
+    return `<div class="clip-publish-row">
+      <div class="clip-publish-title"><strong>${escapeHtml(marker.title)}</strong><small>${escapeHtml(clipUrl)}</small></div>
+      <div class="clip-platforms">
+        <label><input type="checkbox" data-clip-platform="tiktok" data-clip-id="${escapeHtml(marker.twitchClipId)}" ${status.tiktok ? "checked" : ""}> TikTok posted</label>
+        <label><input type="checkbox" data-clip-platform="youtube" data-clip-id="${escapeHtml(marker.twitchClipId)}" ${status.youtube ? "checked" : ""}> YouTube posted</label>
+      </div>
+      <button class="secondary" data-open-streamladder="${escapeHtml(clipUrl)}">Copy clip + open StreamLadder</button>
+    </div>`;
+  }).join("");
+}
+
+function renderPostStreamChecklist(report) {
+  const checklist = $("#post-stream-checklist");
+  const storageKey = report?.id ? `johns-handler.post-stream.${report.id}` : null;
+  let completed = [];
+  if (storageKey) {
+    try { completed = JSON.parse(localStorage.getItem(storageKey) || "[]"); }
+    catch { completed = []; }
+  }
+  checklist.dataset.storageKey = storageKey || "";
+  checklist.querySelectorAll("[data-post-task]").forEach(input => {
+    input.checked = completed.includes(input.dataset.postTask);
+    input.disabled = !storageKey;
+  });
+  const channel = state.channelName || "yepitsjohn";
+  $("#open-twitch-stream-manager").href = `https://dashboard.twitch.tv/u/${encodeURIComponent(channel)}/stream-manager`;
+}
+
+function renderStreamTimeline(report) {
+  const timeline = $("#stream-timeline");
+  const items = report?.timeline || [];
+  if (!items.length) {
+    timeline.className = "stream-timeline empty-state";
+    timeline.textContent = "Scene changes, highlights, Twitch events, breaks, and performance incidents will appear here.";
+    return;
+  }
+  timeline.className = "stream-timeline";
+  timeline.innerHTML = items.map(item => `
+    <div class="timeline-row ${escapeHtml(item.severity || "info")}">
+      <span class="marker-time">${formatOffset(item.offsetSeconds)}</span>
+      <i aria-hidden="true"></i>
+      <div><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.detail)} · ${escapeHtml(item.type)}</small></div>
+    </div>`).join("");
+}
+
+function revealPostStreamReport() {
+  const panel = document.querySelector('[data-panel-id="report"]');
+  if (!panel) return;
+  if (panel.classList.contains("collapsed")) panel.querySelector(".panel-collapse-button")?.click();
+  panel.scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function setGauge(name, value) {
+  const normalized = Math.max(0, Math.min(100, Number(value) || 0));
+  $(`#${name}-value`).textContent = `${Math.round(normalized)}%`;
+  $(`#${name}-bar`).style.width = `${normalized}%`;
+  const gauge = $(`#${name}-gauge`);
+  gauge.classList.toggle("warn", normalized >= 85 && normalized < 95);
+  gauge.classList.toggle("hot", normalized >= 95);
+}
+
+// --- Guided product demo ---------------------------------------------------------------------
+
+function setDemoStage(phase) {
+  ["before", "during", "after"].forEach((name, index) => {
+    const stage = $(`#demo-stage-${name}`);
+    const stageIndex = ["before", "during", "after"].indexOf(phase);
+    stage.classList.toggle("active", name === phase);
+    stage.classList.toggle("complete", index < stageIndex);
+  });
+}
+
+function setDemoHero(level, icon, kicker, title, detail) {
+  const hero = $("#demo-health-hero");
+  hero.className = `demo-health-hero ${level}`;
+  $("#demo-health-icon").textContent = icon;
+  $("#demo-health-kicker").textContent = kicker;
+  $("#demo-health-title").textContent = title;
+  $("#demo-health-detail").textContent = detail;
+}
+
+function renderDemoMetrics() {
+  const demo = state.demo;
+  $("#demo-gpu-value").textContent = `${Math.round(demo.gpu)}%`;
+  $("#demo-render-value").textContent = demo.renderMissed >= 1
+    ? `${demo.renderMissed.toFixed(1)}% missed`
+    : demo.renderMissed >= .25 ? "Beginning to fall behind" : "Healthy";
+  $("#demo-network-value").textContent = `${Math.round(demo.latency)} ms`;
+  $("#demo-headroom-value").textContent = `${Math.max(0, 100 - Math.round(demo.gpu))}%`;
+}
+
+function renderGuidedDemo() {
+  const demo = state.demo;
+  const primary = $("#demo-primary-action");
+  const gpuButton = $("#demo-simulate-gpu");
+  const networkButton = $("#demo-simulate-network");
+  const fixButton = $("#demo-fix-it");
+  const exitButton = $("#demo-exit");
+  const metrics = $("#demo-metrics");
+  const explanation = $("#demo-explanation");
+  const fixes = $("#demo-fix-results");
+  const summary = $("#demo-summary");
+
+  setDemoStage(demo.phase);
+  $("#demo-mode-state").textContent = demo.active ? "Safe demo mode" : "Demo off";
+  exitButton.hidden = !demo.active;
+  metrics.hidden = !demo.active || demo.phase === "before" || demo.phase === "after";
+  fixes.hidden = true;
+  summary.hidden = true;
+  gpuButton.hidden = true;
+  networkButton.hidden = true;
+  fixButton.hidden = true;
+  primary.hidden = false;
+
+  if (!demo.active) {
+    setDemoHero("healthy", "✓", "BEFORE THE STREAM", "See the complete Stream Health story", "Run a safe simulation using sample data. Nothing connects to or changes OBS.");
+    explanation.innerHTML = "<strong>What this demonstrates</strong><p>Simple readiness, interpreted live health, safe corrective actions, and a useful session summary.</p>";
+    primary.textContent = "Start guided demo";
+    return;
+  }
+
+  if (demo.phase === "before") {
+    setDemoHero("healthy", "✓", "BEFORE THE STREAM", "READY TO GO LIVE", "OBS, Twitch, audio, internet, and all enabled integrations passed their simulated checks.");
+    explanation.innerHTML = "<strong>The technical detail stays out of the way</strong><p>Required checks are healthy. Spotify and Tangia are shown as intentionally skipped when disabled.</p>";
+    primary.textContent = "Start demo stream";
+    return;
+  }
+
+  if (demo.phase === "after") {
+    setDemoHero("healthy", "✓", "AFTER THE STREAM", "STREAM SUMMARY", "The incident, recovery, and recommendation are preserved in a readable timeline.");
+    explanation.innerHTML = "<strong>What happened?</strong><p>One performance incident was detected and recovered without changing disruptive broadcast settings.</p>";
+    const issue = demo.incident === "network"
+      ? "Connection instability appeared to be the likely cause. Review upload competition before the next stream."
+      : "GPU pressure occurred once. Keep the lower-load scene available during demanding raid encounters.";
+    const incidentLine = demo.incident === "network"
+      ? "Connection instability detected at 185 ms"
+      : "GPU pressure reached 94% with OBS render misses";
+    summary.hidden = false;
+    summary.innerHTML = `<strong>Example session</strong>
+      <div class="demo-summary-metrics">
+        <div><b>3h 04m</b><span>streamed</span></div>
+        <div><b>9</b><span>highlights</span></div>
+        <div><b>14</b><span>scene changes</span></div>
+      </div>
+      <div class="demo-timeline">
+        <div><time>1:22:16</time><span>Boss victory marked and replay saved</span></div>
+        <div><time>2:06:42</time><span>${incidentLine}</span></div>
+        <div><time>2:07:18</time><span>Stream Health recovered after safe actions</span></div>
+      </div>
+      <div class="demo-recommendation"><strong>Recommendation:</strong> ${issue}</div>`;
+    primary.textContent = "Run demo again";
+    return;
+  }
+
+  renderDemoMetrics();
+  if (demo.status === "healthy") {
+    setDemoHero("healthy", "✓", "DURING THE STREAM", "STREAM HEALTHY", "Everything is operating normally. Choose a problem to see how the diagnosis works.");
+    explanation.innerHTML = "<strong>Is everything okay?</strong><p>Yes. Raw values remain visible, but the interpreted answer comes first.</p>";
+    primary.hidden = true;
+    gpuButton.hidden = false;
+    networkButton.hidden = false;
+  } else if (demo.status === "building") {
+    const network = demo.incident === "network";
+    setDemoHero("warning", "!", "DETERMINISTIC RULE CHECK", network ? "CONNECTION QUALITY IS DECLINING" : "PERFORMANCE PRESSURE DETECTED", network ? "Latency and output congestion are increasing while OBS rendering remains healthy." : "GPU load and OBS render time are rising across the simulated sustained window.");
+    explanation.innerHTML = `<strong>Watching for a sustained pattern</strong><p>${network ? "The PC remains healthy, which points toward the connection." : "A single spike is not enough. The rule waits for GPU pressure and render impact together."}</p>`;
+    primary.hidden = true;
+  } else if (demo.status === "diagnosed") {
+    const network = demo.incident === "network";
+    setDemoHero("critical", "!", "DURING THE STREAM", network ? "VIEWERS MAY BE EXPERIENCING DROPPED FRAMES" : "STREAM PERFORMANCE IS AT RISK", network ? "The connection to Twitch appears unstable. PC rendering remains healthy." : "GPU usage stayed above 90% while OBS render misses increased. GPU pressure is the likely cause.");
+    explanation.innerHTML = `<strong>Likely cause: ${network ? "network instability" : "GPU pressure"}</strong><p>The conclusion comes from multiple related signals, not one universal threshold.</p>`;
+    primary.hidden = true;
+    fixButton.hidden = false;
+  } else if (demo.status === "fixing") {
+    setDemoHero("warning", "…", "SAFE CORRECTIVE ACTIONS", "RECOVERING STREAM HEADROOM", "The demo is applying reversible actions and watching the signals respond.");
+    explanation.innerHTML = "<strong>No disruptive changes</strong><p>Encoder, resolution, bitrate, OBS, and the live stream remain untouched.</p>";
+    fixes.hidden = false;
+    fixes.innerHTML = demo.incident === "network"
+      ? "<strong>Simulated actions</strong><ul><li>✓ Paused nonessential integration traffic</li><li>✓ Disabled a user-designated high-bandwidth overlay</li><li>✓ Preserved the current broadcast output settings</li></ul>"
+      : "<strong>Simulated actions</strong><ul><li>✓ Paused Tangia animations</li><li>✓ Hid a user-designated animated overlay</li><li>✓ Enabled the predefined lower-load scene profile</li></ul>";
+    primary.hidden = true;
+  } else if (demo.status === "recovered") {
+    setDemoHero("recovered", "✓", "DURING THE STREAM", "STREAM HEALTH RECOVERED", demo.incident === "network" ? "Connection quality returned to a healthy range after nonessential traffic was paused." : "GPU headroom and OBS rendering recovered after the simulated safe actions.");
+    explanation.innerHTML = "<strong>The result is measured</strong><p>The incident and recovery will now appear in the post-stream summary.</p>";
+    fixes.hidden = false;
+    fixes.innerHTML = "<strong>Recovery confirmed</strong><p>Signals returned to a healthy range without a disruptive broadcast change.</p>";
+    primary.textContent = "End demo stream";
+  }
+}
+
+function resetGuidedDemo(active = false) {
+  state.demo.runId += 1;
+  Object.assign(state.demo, {
+    active,
+    phase: "before",
+    status: active ? "ready" : "intro",
+    incident: null,
+    gpu: 68,
+    renderMissed: .03,
+    latency: 32,
+    timeline: []
+  });
+  renderGuidedDemo();
+}
+
+function advanceGuidedDemo() {
+  const demo = state.demo;
+  if (!demo.active) {
+    resetGuidedDemo(true);
+  } else if (demo.phase === "before") {
+    demo.phase = "during";
+    demo.status = "healthy";
+    renderGuidedDemo();
+  } else if (demo.phase === "during" && demo.status === "recovered") {
+    demo.phase = "after";
+    renderGuidedDemo();
+  } else if (demo.phase === "after") {
+    resetGuidedDemo(true);
+  }
+}
+
+async function runDemoIncident(type) {
+  const demo = state.demo;
+  if (!demo.active || demo.phase !== "during" || demo.status !== "healthy") return;
+  demo.incident = type;
+  demo.status = "building";
+  const runId = ++demo.runId;
+  const steps = type === "network"
+    ? [
+        { gpu: 67, renderMissed: .03, latency: 58 },
+        { gpu: 66, renderMissed: .04, latency: 94 },
+        { gpu: 68, renderMissed: .04, latency: 142 },
+        { gpu: 67, renderMissed: .05, latency: 185 }
+      ]
+    : [
+        { gpu: 76, renderMissed: .04, latency: 33 },
+        { gpu: 84, renderMissed: .09, latency: 31 },
+        { gpu: 91, renderMissed: .38, latency: 34 },
+        { gpu: 94, renderMissed: 1.2, latency: 32 }
+      ];
+  renderGuidedDemo();
+  for (const step of steps) {
+    await new Promise(resolve => window.setTimeout(resolve, 850));
+    if (runId !== demo.runId || !demo.active) return;
+    Object.assign(demo, step);
+    renderGuidedDemo();
+  }
+  demo.status = "diagnosed";
+  renderGuidedDemo();
+}
+
+async function fixDemoIncident() {
+  const demo = state.demo;
+  if (demo.status !== "diagnosed") return;
+  demo.status = "fixing";
+  const runId = ++demo.runId;
+  const steps = demo.incident === "network"
+    ? [{ latency: 118 }, { latency: 72 }, { latency: 29 }]
+    : [
+        { gpu: 88, renderMissed: .62 },
+        { gpu: 79, renderMissed: .18 },
+        { gpu: 67, renderMissed: .04 }
+      ];
+  renderGuidedDemo();
+  for (const step of steps) {
+    await new Promise(resolve => window.setTimeout(resolve, 850));
+    if (runId !== demo.runId || !demo.active) return;
+    Object.assign(demo, step);
+    renderGuidedDemo();
+  }
+  demo.status = "recovered";
+  renderGuidedDemo();
+}
+
+// --- System and OBS performance diagnosis ----------------------------------------------------
+
+async function refreshPerformance() {
+  try {
+    const [snapshot, internet] = await Promise.all([
+      api("/api/system/status"),
+      api("/api/internet/status")
+    ]);
+    state.system = snapshot;
+    state.internet = internet;
+    const current = snapshot.current;
+    setGauge("cpu", current.cpuPercent);
+    setGauge("gpu", current.gpuPercent);
+    setGauge("vram", current.vramPercent);
+    setGauge("ram", current.memoryPercent);
+    $("#gpu-name").textContent = current.gpuName || "GPU monitor unavailable";
+    $("#gpu-temp").textContent = current.gpuTemperatureC == null ? "--°C" : `${Math.round(current.gpuTemperatureC)}°C`;
+    drawPerformanceChart(snapshot.history || []);
+    renderResourceDrains(snapshot.resourceDrains || []);
+    renderInternetStatus(internet);
+    evaluateHeadroom();
+  } catch {
+    $("#performance-state").textContent = "Unavailable";
+  }
+}
+
+function renderInternetStatus(internet) {
+  const current = $("#internet-current");
+  const events = $("#internet-events");
+  const latency = internet.latencyMs == null ? "No response" : `${Math.round(internet.latencyMs)} ms`;
+  current.textContent = `${internet.online ? latency : "Offline"} · ${Number(internet.failurePercent || 0).toFixed(0)}% failed checks in the last minute`;
+  current.className = `internet-current ${internet.status === "offline" ? "hot" : internet.status === "slow" || internet.status === "unstable" ? "warn" : ""}`;
+
+  const eventSignature = JSON.stringify(internet.events || []);
+  if (events.dataset.signature === eventSignature) return;
+  events.dataset.signature = eventSignature;
+  if (!internet.events?.length) {
+    events.className = "internet-events empty-state";
+    events.textContent = "No connection hiccups recorded since John’s Twitch Handler opened.";
+    return;
+  }
+
+  events.className = "internet-events";
+  events.innerHTML = internet.events.slice(0, 8).map(event => {
+    const time = new Date(event.at).toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+    return `<div class="internet-event ${escapeHtml(event.level)}">
+      <time datetime="${escapeHtml(event.at)}">${escapeHtml(time)}</time>
+      <span>${escapeHtml(event.message)}</span>
+    </div>`;
+  }).join("");
+}
+
+function renderResourceDrains(drains) {
+  const list = $("#resource-drains");
+  const signature = JSON.stringify(drains);
+  if (list.dataset.signature === signature) return;
+  list.dataset.signature = signature;
+  if (!drains.length) {
+    list.className = "resource-drains empty-state";
+    list.textContent = "Collecting process samples…";
+    return;
+  }
+
+  list.className = "resource-drains";
+  list.innerHTML = drains.map(drain => {
+    const count = drain.processCount > 1 ? ` · ${drain.processCount} processes` : "";
+    return `<div class="resource-drain-row">
+      <strong title="${escapeHtml(drain.name)}">${escapeHtml(drain.name)}${count}</strong>
+      <span>${Number(drain.cpuPercent).toFixed(1)}% CPU · ${Math.round(drain.memoryMb)} MB</span>
+      <small>${escapeHtml(drain.assessment)} ${escapeHtml(drain.recommendation)}</small>
+    </div>`;
+  }).join("");
+}
+
+function evaluateHeadroom() {
+  if (!state.system?.current) return;
+  const current = state.system.current;
+  const maxLoad = Math.max(Number(current.cpuPercent) || 0, Number(current.gpuPercent) || 0);
+  const headroom = Math.max(0, 100 - maxLoad);
+  const renderMissed = Number(state.obs.renderSkippedPercent) || 0;
+  const encoderMissed = Number(state.obs.outputSkippedPercent) || 0;
+  const congestion = Number(state.obs.outputCongestion) || 0;
+  const internetStatus = state.internet?.status || "checking";
+  const internetOffline = internetStatus === "offline";
+  const internetLimited = internetStatus === "slow" || internetStatus === "unstable";
+  const actions = [...(state.system.warnings || [])];
+
+  if (renderMissed >= 1) actions.push("OBS is missing render frames. Cap WoW's foreground FPS first, then reduce shadows or render scale.");
+  else if (renderMissed >= .25) actions.push("OBS render misses are beginning; preserve more GPU headroom before the next pull.");
+  if (encoderMissed >= 1) actions.push("The encoder is skipping frames. Keep NVENC enabled and close GPU-heavy background apps.");
+  if (congestion >= .1) actions.push("Network congestion is affecting the stream. Reduce bitrate or pause other uploads.");
+  if (internetOffline) actions.push("The internet connection check failed. Check the router or ISP before going live.");
+  else if (internetLimited) actions.push(state.internet.detail);
+  if (!actions.length && headroom < 15) actions.push("Headroom is limited. Cap WoW FPS a little below the rate your GPU can continuously hold.");
+
+  setHeadroomSignal("#headroom-value", `${Math.round(headroom)}%`, headroom <= 5 ? "hot" : headroom < 15 ? "warn" : "");
+  setHeadroomSignal("#render-health", !state.obs.connected ? "OBS offline" : renderMissed >= 1 ? `${renderMissed.toFixed(2)}% missed` : renderMissed >= .25 ? "Watch" : "Healthy", renderMissed >= 1 ? "hot" : renderMissed >= .25 ? "warn" : "");
+  const internetLabel = internetOffline
+    ? "Offline"
+    : internetStatus === "unstable"
+      ? "Unstable"
+      : internetStatus === "slow"
+        ? `${Math.round(state.internet.latencyMs)} ms`
+        : state.internet?.latencyMs != null
+          ? `${Math.round(state.internet.latencyMs)} ms`
+          : "Checking";
+  setHeadroomSignal("#network-health", congestion >= .1 ? "OBS congested" : internetLabel, internetOffline || congestion >= .1 ? "hot" : internetLimited || congestion > .02 ? "warn" : "");
+
+  const severe = maxLoad >= 95 || renderMissed >= 1 || encoderMissed >= 1 || congestion >= .1 || internetOffline;
+  const limited = maxLoad >= 85 || renderMissed >= .25 || congestion > .02 || internetLimited;
+  $("#performance-state").textContent = severe ? "Action needed" : limited ? "Limited headroom" : "Healthy";
+  const warning = $("#performance-warning");
+  warning.textContent = actions.length ? actions.join(" ") : "CPU, GPU, internet latency, OBS rendering, and network output all have healthy headroom.";
+  warning.classList.toggle("alert", severe);
+}
+
+function setHeadroomSignal(selector, text, level) {
+  const element = $(selector);
+  element.textContent = text;
+  element.className = level;
+}
+
+function drawPerformanceChart(history) {
+  const points = (key) => history.map((sample, index) => {
+    const x = history.length <= 1 ? 0 : index / (history.length - 1) * 600;
+    const y = 90 - Math.max(0, Math.min(100, sample[key] || 0)) / 100 * 86;
+    return `${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(" ");
+  $("#cpu-line").setAttribute("points", points("cpuPercent"));
+  $("#gpu-line").setAttribute("points", points("gpuPercent"));
+}
+
+async function loadProfileAnalysis() {
+  try {
+    const analysis = await api("/api/obs/profile-analysis");
+    renderProfileAnalysis(analysis);
+    const channel = state.channelName || analysis.channelName;
+    if (channel) loadChat(channel);
+  } catch (error) {
+    $("#optimizer-verdict").textContent = error.message;
+  }
+}
+
+// --- Broadcast optimizer ---------------------------------------------------------------------
+
+function renderProfileAnalysis(analysis) {
+  $("#current-profile").textContent = analysis.found ? analysis.profileName : "Not found";
+  $("#current-settings").textContent = analysis.found
+    ? `${analysis.currentResolution || "?"} · ${analysis.currentFps || "?"} FPS · ${analysis.currentBitrateKbps || "?"} Kbps · ${analysis.currentEncoder || "unknown encoder"}`
+    : "OBS profile could not be read";
+  $("#optimizer-verdict").textContent = analysis.verdict;
+  $("#apply-optimizer").dataset.profileFound = String(analysis.found);
+  if (state.optimizer) renderOptimizerStatus();
+}
+
+async function refreshOptimizerStatus() {
+  try {
+    state.optimizer = await api("/api/obs/optimizer/status");
+  } catch (error) {
+    state.optimizer = { obsRunning: true, backupAvailable: false, error: error.message };
+  }
+  renderOptimizerStatus();
+}
+
+function renderOptimizerStatus(message) {
+  const status = state.optimizer || {};
+  const profileFound = $("#apply-optimizer").dataset.profileFound === "true";
+  $("#apply-optimizer").disabled = state.optimizerBusy || status.obsRunning || !profileFound;
+  $("#restore-optimizer").disabled = state.optimizerBusy || status.obsRunning || !status.backupAvailable;
+  $("#optimizer-state").textContent = state.optimizerBusy ? "Working…" : status.obsRunning ? "Close OBS" : status.backupAvailable ? "Restore ready" : "Ready";
+  $("#optimizer-action-message").textContent = message || status.error || (status.obsRunning
+    ? "Close OBS before applying or restoring settings."
+    : status.backupAvailable
+      ? `The original ${status.backupProfileName} settings are saved and ready to restore.`
+      : "Ready to apply. John's Twitch Handler will save the current profile first.");
+}
+
+async function runOptimizerAction(path) {
+  state.optimizerBusy = true;
+  renderOptimizerStatus();
+  try {
+    const result = await api(path, { method: "POST" });
+    state.optimizer = result.status;
+    renderProfileAnalysis(result.analysis);
+    renderOptimizerStatus(result.message);
+    toast(result.message);
+  } catch (error) {
+    await refreshOptimizerStatus();
+    renderOptimizerStatus(error.message);
+    toast(error.message, true);
+  } finally {
+    state.optimizerBusy = false;
+    renderOptimizerStatus($("#optimizer-action-message").textContent);
+  }
+}
+
+function loadChat(channelName) {
+  const channel = String(channelName || "").trim().toLowerCase();
+  if (!channel) return;
+  state.channelName = channel;
+  localStorage.setItem("streamsidekick.channel", channel);
+  $("#twitch-channel-name").value = channel;
+  renderCombinedChat();
+}
+
+function extractYouTubeVideoId(value) {
+  const text = String(value || "").trim();
+  if (/^[A-Za-z0-9_-]{11}$/.test(text)) return text;
+  try {
+    const url = new URL(text);
+    const candidate = url.hostname.includes("youtu.be")
+      ? url.pathname.split("/").filter(Boolean)[0]
+      : url.searchParams.get("v") || url.pathname.match(/\/(?:live|embed)\/([A-Za-z0-9_-]{11})/)?.[1];
+    return /^[A-Za-z0-9_-]{11}$/.test(candidate || "") ? candidate : "";
+  } catch {
+    return "";
+  }
+}
+
+function renderCombinedChat() {
+  const channel = String(state.channelName || "").trim().toLowerCase();
+  const youtube = state.youtubeVideoId;
+  const parent = window.location.hostname;
+  const wrap = $("#chat-frame-wrap");
+  if (!channel && !youtube && !state.tikFinityEnabled) {
+    $("#chat-heading").textContent = "Channel chat";
+    wrap.className = "chat-frame-wrap empty-state";
+    wrap.textContent = "Add Twitch, YouTube, or TikFinity chat in Settings.";
+    return;
+  }
+  const chats = [];
+  const chatNames = [];
+  if (channel) {
+    const src = `https://www.twitch.tv/embed/${encodeURIComponent(channel)}/chat?parent=${encodeURIComponent(parent)}&darkpopout`;
+    chats.push(`<div class="chat-column"><strong>TWITCH</strong><iframe title="${escapeHtml(channel)} Twitch chat" src="${src}" allowfullscreen></iframe></div>`);
+    chatNames.push("Twitch");
+  }
+  if (youtube) {
+    const src = `https://www.youtube.com/live_chat?v=${encodeURIComponent(youtube)}&embed_domain=${encodeURIComponent(parent)}&dark_theme=1`;
+    chats.push(`<div class="chat-column"><strong>YOUTUBE</strong><iframe title="YouTube live chat" src="${src}" allowfullscreen></iframe></div>`);
+    chatNames.push("YouTube");
+  }
+  if (state.tikFinityEnabled) {
+    chats.push('<div class="chat-column"><strong>TIKTOK VIA TIKFINITY</strong><div id="tikfinity-chat-list" class="tikfinity-chat-list empty-state">Waiting for TikTok chat…</div></div>');
+    chatNames.push("TikTok");
+  }
+  $("#chat-heading").textContent = chatNames.length > 1 ? `${chatNames.join(" + ")} chat` : chatNames[0] === "Twitch" ? `${channel} chat` : `${chatNames[0]} live chat`;
+  wrap.className = `chat-frame-wrap${chats.length > 1 ? ` multiplatform platform-count-${chats.length}` : ""}`;
+  wrap.innerHTML = chats.join("");
+  renderTikFinity();
+}
+
+async function openGameChat() {
+  const channel = String(state.channelName || "").trim().toLowerCase();
+  const youtube = state.youtubeVideoId;
+  if (!channel && !youtube) {
+    toast("Add Twitch or YouTube chat in Settings first.", true);
+    return;
+  }
+
+  const fallbackUrl = `/chat-popout.html?channel=${encodeURIComponent(channel)}&youtube=${encodeURIComponent(youtube)}`;
+  if (!("documentPictureInPicture" in window)) {
+    window.open(fallbackUrl, "johns-twitch-handler-chat", "popup,width=420,height=680");
+    toast("Game Chat opened. Press Win+Ctrl+T with that window selected if you use PowerToys Always On Top.");
+    return;
+  }
+
+  try {
+    // Document Picture-in-Picture is a Chromium feature whose window remains above a borderless
+    // game. Twitch chat stays in its own iframe and does not add capture load to OBS.
+    const pipWindow = await documentPictureInPicture.requestWindow({ width: 420, height: 680 });
+    const parent = window.location.hostname;
+    const frames = [];
+    if (channel) frames.push(`<section><span>TWITCH</span><iframe title="${escapeHtml(channel)} Twitch chat" src="https://www.twitch.tv/embed/${encodeURIComponent(channel)}/chat?parent=${encodeURIComponent(parent)}&darkpopout"></iframe></section>`);
+    if (youtube) frames.push(`<section><span>YOUTUBE</span><iframe title="YouTube live chat" src="https://www.youtube.com/live_chat?v=${encodeURIComponent(youtube)}&embed_domain=${encodeURIComponent(parent)}&dark_theme=1"></iframe></section>`);
+    pipWindow.document.head.innerHTML = `<title>Stream chat</title><style>
+      *{box-sizing:border-box}body{display:grid;grid-template-rows:auto 1fr;height:100vh;margin:0;overflow:hidden;background:#0e1118;color:#f5f7fb;font:11px "Segoe UI",sans-serif}
+      header{display:flex;align-items:center;gap:8px;padding:7px 9px;border-bottom:1px solid #2a3040;background:#11141c}header strong{margin-right:auto}label{display:flex;gap:5px;align-items:center;color:#9aa3b5}input{width:72px;accent-color:#9867ff}.chats{display:grid;grid-template-rows:repeat(${frames.length},minmax(0,1fr));gap:1px;background:#2a3040;min-height:0}section{display:grid;grid-template-rows:22px 1fr;min-height:0;background:#0e1118}section span{display:flex;align-items:center;padding:0 7px;color:#9aa3b5;font-size:9px}iframe{width:100%;height:100%;border:0;opacity:.92}
+    </style>`;
+    pipWindow.document.body.innerHTML = `<header><strong>Stream chat</strong><label>Opacity <input id="chat-opacity" type="range" min="45" max="100" value="92"></label></header><div class="chats">${frames.join("")}</div>`;
+    pipWindow.document.querySelector("#chat-opacity").addEventListener("input", event => {
+      pipWindow.document.querySelectorAll("iframe").forEach(frame => { frame.style.opacity = String(Number(event.target.value) / 100); });
+    });
+  } catch (error) {
+    window.open(fallbackUrl, "johns-twitch-handler-chat", "popup,width=420,height=680");
+    toast(`Always-on-top chat was unavailable, so a compact chat window opened instead. ${error.message}`);
+  }
+}
+
+// --- Twitch and Spotify integrations ----------------------------------------------------------
+
+async function refreshAlerts() {
+  try {
+    const feed = await api("/api/alerts");
+    $("#alerts-state").textContent = feed.connected ? "Connected" : "Not connected";
+    $("#alerts-state").style.color = feed.connected ? "var(--green)" : "";
+    const list = $("#alerts-list");
+    const signature = JSON.stringify({ status: feed.status, alerts: feed.alerts || [] });
+    if (list.dataset.signature === signature) {
+      $("#alerts-warnings").textContent = feed.setupWarnings?.length ? `Permissions: ${feed.setupWarnings.join(" · ")}` : "";
+      return;
+    }
+    list.dataset.signature = signature;
+    if (!feed.alerts?.length) {
+      list.className = "alerts-list empty-state";
+      list.textContent = feed.status;
+    } else {
+      list.className = "alerts-list";
+      list.innerHTML = feed.alerts.map(alert => `
+        <div class="alert-row ${alertHighlightClass(alert.type)}">
+          <span class="alert-icon">${alertIcon(alert.type)}</span>
+          <div class="alert-copy"><strong>${escapeHtml(alert.title)}</strong><small>${escapeHtml(alert.detail)}</small></div>
+          <time class="alert-time">${formatAlertTime(alert.at)}</time>
+        </div>`).join("");
+    }
+    $("#alerts-warnings").textContent = feed.setupWarnings?.length ? `Permissions: ${feed.setupWarnings.join(" · ")}` : "";
+  } catch {
+    $("#alerts-state").textContent = "Unavailable";
+  }
+}
+
+async function refreshChatChime() {
+  try {
+    state.chatChime = await api("/api/chat-chime");
+    const snapshot = state.chatChime;
+    $("#chat-chime-enabled").checked = snapshot.enabled;
+    $("#chat-chime-volume").value = snapshot.volumeDb;
+    $("#chat-chime-volume-value").textContent = `${Number(snapshot.volumeDb).toFixed(0).replace("-", "−")} dB`;
+    const status = $("#chat-chime-status");
+    status.textContent = snapshot.status;
+    status.classList.toggle("unsafe", snapshot.enabled && !snapshot.safeToPlay);
+    $("#test-chat-chime").disabled = !snapshot.obsConnected || !snapshot.safeToPlay;
+  } catch (error) {
+    $("#chat-chime-status").textContent = error.message;
+    $("#test-chat-chime").disabled = true;
+  }
+}
+
+async function saveChatChime() {
+  try {
+    state.chatChime = await api("/api/chat-chime", {
+      method: "PUT",
+      body: JSON.stringify({
+        enabled: $("#chat-chime-enabled").checked,
+        volumeDb: Number($("#chat-chime-volume").value)
+      })
+    });
+    await refreshChatChime();
+  } catch (error) { toast(error.message, true); }
+}
+
+function alertIcon(type) {
+  return ({ follow: "+", subscription: "★", gift: "🎁", resub: "↻", cheer: "◆", raid: "⚑", reward: "✦", ad: "◷", live: "●", offline: "■", test: "✓", warning: "!" })[type] || "•";
+}
+
+function alertHighlightClass(type) {
+  // Follows, every kind of subscription, and Bits receive distinct high-contrast treatments.
+  if (type === "follow") return "alert-follow alert-highlight";
+  if (["subscription", "gift", "resub"].includes(type)) return "alert-subscription alert-highlight";
+  if (type === "cheer") return "alert-bits alert-highlight";
+  return "";
+}
+
+async function refreshSpotify() {
+  if (!state.spotifyEnabled) {
+    state.spotify = { connected: false, status: "Spotify is disabled on this computer.", queue: [], options: { rewardTitle: "Song Request", autoQueue: true, allowExplicit: true }, requests: [] };
+    return;
+  }
+  try {
+    state.spotify = await api("/api/spotify/status");
+    renderSpotify();
+  } catch (error) {
+    state.spotify = { connected: false, status: error.message, queue: [], options: { rewardTitle: "Song Request", autoQueue: true, allowExplicit: true }, requests: [] };
+    renderSpotify();
+  }
+}
+
+function renderSpotifyPreflight(snapshot) {
+  if (!state.spotifyEnabled) {
+    setCheck("#check-spotify", true, "Skipped on this computer", "Skipped", "skipped");
+    return;
+  }
+  const connected = Boolean(snapshot?.connected);
+  const playback = snapshot?.playback;
+  const ready = connected && Boolean(playback);
+  const detail = ready
+    ? `${playback.deviceName} ready for viewer requests`
+    : connected
+      ? "Connected. Open Spotify and start playback on a device."
+      : "Connect Spotify to accept viewer song requests";
+  setCheck("#check-spotify", ready, detail, ready ? "Ready" : connected ? "Device" : "Connect");
+}
+
+function renderSpotify() {
+  const snapshot = state.spotify || {};
+  const playback = snapshot.playback;
+  const track = playback?.track;
+  $("#spotify-state").textContent = snapshot.connected ? (playback?.isPlaying ? "Playing" : "Connected") : "Not connected";
+  $("#spotify-track-title").textContent = track?.title || (snapshot.connected ? "No active playback" : "Connect Spotify to begin");
+  $("#spotify-track-detail").textContent = track ? `${track.artist} · ${track.album}` : (snapshot.status || "Requests play through your active Spotify device.");
+  $("#spotify-device").textContent = playback ? `${playback.deviceName} · ${playback.volumePercent}%` : "Not available";
+  $("#spotify-play-state").textContent = playback?.isPlaying ? "▶" : "♫";
+  const rewardInput = $("#spotify-reward-title");
+  if (document.activeElement !== rewardInput) rewardInput.value = snapshot.options?.rewardTitle || "Song Request";
+  $("#spotify-auto-queue").checked = Boolean(snapshot.options?.autoQueue);
+  $("#spotify-allow-explicit").checked = Boolean(snapshot.options?.allowExplicit);
+  $("#search-spotify").disabled = !snapshot.connected;
+  $("#test-spotify-request").disabled = !snapshot.connected;
+  $("#disconnect-spotify").disabled = !snapshot.connected;
+  $("#skip-spotify").disabled = !snapshot.connected || !playback;
+  renderSpotifyPreflight(snapshot);
+  renderSpotifyQueue(snapshot.queue || []);
+  renderSpotifyRequests(snapshot.requests || []);
+  updateDashboardBorder();
+}
+
+function renderSpotifyQueue(queue) {
+  const list = $("#spotify-up-next");
+  $("#spotify-queue-count").textContent = queue.length ? `${queue.length} shown` : "Spotify queue";
+  if (!queue.length) {
+    list.className = "spotify-up-next empty-state";
+    list.textContent = state.spotify?.connected ? "No upcoming tracks reported by Spotify." : "Connect Spotify to view the queue.";
+    return;
+  }
+  list.className = "spotify-up-next";
+  list.innerHTML = queue.map((item, index) => {
+    const requester = item.viewerRequest ? `requested by ${item.requester}` : "from Spotify playback";
+    return `<div class="spotify-queue-row"><span>${index + 1}</span><div><strong>${escapeHtml(item.track.title)}${item.track.explicit ? " · E" : ""}</strong><small>${escapeHtml(item.track.artist)} · ${escapeHtml(requester)}</small></div></div>`;
+  }).join("");
+}
+
+function renderSpotifyRequests(requests) {
+  const list = $("#spotify-request-list");
+  if (!requests.length) {
+    list.className = "spotify-request-list empty-state";
+    list.textContent = "No song requests yet.";
+    return;
+  }
+  list.className = "spotify-request-list";
+  list.innerHTML = requests.map(request => {
+    const track = request.track;
+    const title = track?.title || request.sourceText || "Unmatched request";
+    const detail = track ? `${track.artist} · requested by ${request.requester}` : `${request.requester} · ${request.note || "No match"}`;
+    const actions = request.status === "pending"
+      ? `<div class="request-buttons"><button class="secondary" data-spotify-approve="${escapeHtml(request.id)}">Queue</button><button class="text-button" data-spotify-reject="${escapeHtml(request.id)}">Reject</button></div>`
+      : `<span class="request-status ${escapeHtml(request.status)}">${escapeHtml(request.status)}</span>`;
+    return `<div class="spotify-request-row"><div><strong>${escapeHtml(title)}</strong><small>${escapeHtml(detail)}${request.note ? ` · ${escapeHtml(request.note)}` : ""}</small></div>${actions}</div>`;
+  }).join("");
+}
+
+async function searchSpotify() {
+  const query = $("#spotify-search").value.trim();
+  if (query.length < 2) { toast("Enter a song or artist to search Spotify.", true); return; }
+  try {
+    $("#spotify-search-results").innerHTML = '<div class="empty-state">Searching Spotify…</div>';
+    state.spotifyResults = await api(`/api/spotify/search?query=${encodeURIComponent(query)}`);
+    $("#spotify-search-results").innerHTML = state.spotifyResults.length
+      ? state.spotifyResults.map(track => `<div class="spotify-result"><div><strong>${escapeHtml(track.title)}${track.explicit ? " · E" : ""}</strong><small>${escapeHtml(track.artist)} · ${escapeHtml(track.album)}</small></div><button class="secondary" data-spotify-queue="${escapeHtml(track.uri)}">Queue</button></div>`).join("")
+      : '<div class="empty-state">No Spotify tracks matched.</div>';
+  } catch (error) {
+    $("#spotify-search-results").textContent = error.message;
+  }
+}
+
+function formatAlertTime(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.valueOf()) ? "now" : date.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+}
+
+const layoutStorageKey = "streamsidekick.panelOrder";
+const collapsedPanelsStorageKey = "streamsidekick.collapsedPanels";
+const panelSizesStorageKey = "streamsidekick.panelSizes";
+const themeStorageKey = "streamsidekick.theme";
+const defaultPanelOrder = ["stream-health", "clips", "scenes", "audio", "chat", "alerts", "commands", "automations", "raids", "viewers", "streamelements", "tikfinity", "tangia", "ads", "spotify", "performance", "optimizer", "report"];
+let layoutSaveChain = Promise.resolve();
+
+const themes = {
+  midnight: "#090b10",
+  ocean: "#061017",
+  forest: "#07100c",
+  ember: "#120a08",
+  slate: "#0b0e12"
+};
+
+function initializeTheme() {
+  const saved = localStorage.getItem(themeStorageKey);
+  applyTheme(Object.hasOwn(themes, saved) ? saved : "midnight", false);
+  $("#theme-select").addEventListener("change", event => applyTheme(event.target.value, true));
+}
+
+function applyTheme(theme, persist) {
+  const selected = Object.hasOwn(themes, theme) ? theme : "midnight";
+  document.documentElement.dataset.theme = selected;
+  $("#theme-select").value = selected;
+  document.querySelector('meta[name="theme-color"]')?.setAttribute("content", themes[selected]);
+  if (persist) {
+    localStorage.setItem(themeStorageKey, selected);
+    toast(`${$("#theme-select").selectedOptions[0].textContent} theme selected.`);
+  }
+}
+
+// --- Movable dashboard cards -----------------------------------------------------------------
+
+async function initializeMovablePanels() {
+  const grid = $(".dashboard-grid");
+  const saved = await readSavedPanelOrder();
+  if (saved.length && !saved.includes("audio")) {
+    const scenesIndex = saved.indexOf("scenes");
+    saved.splice(scenesIndex >= 0 ? scenesIndex + 1 : saved.length, 0, "audio");
+  }
+  applyPanelOrder(saved.length ? saved : defaultPanelOrder);
+  // Migrate browser-only layouts into the durable app store and remove retired card IDs.
+  savePanelOrder();
+
+  let dragged = null;
+  const collapsedPanels = readCollapsedPanels();
+  const panelSizes = readPanelSizes();
+  $$(".dashboard-grid > .panel").forEach(panel => {
+    const heading = panel.querySelector(".panel-heading");
+    const panelName = heading.querySelector("h3")?.textContent || "dashboard card";
+    // Keep every existing heading control together so the collapse button can be added consistently
+    // without changing the markup or behavior of each individual dashboard card.
+    let headingActions = heading.querySelector(":scope > .panel-heading-actions");
+    if (!headingActions) {
+      headingActions = document.createElement("div");
+      headingActions.className = "panel-heading-actions";
+      [...heading.children].slice(1).forEach(child => headingActions.append(child));
+      heading.append(headingActions);
+    }
+    const collapseButton = document.createElement("button");
+    collapseButton.type = "button";
+    collapseButton.className = "panel-collapse-button";
+    headingActions.append(collapseButton);
+    setPanelCollapsed(panel, collapsedPanels.has(panel.dataset.panelId), collapseButton, panelName);
+    applyPanelSize(panel, panelSizes[panel.dataset.panelId]);
+    addPanelResizeHandle(panel, panelName, grid);
+
+    collapseButton.addEventListener("click", event => {
+      event.stopPropagation();
+      const collapsed = !panel.classList.contains("collapsed");
+      setPanelCollapsed(panel, collapsed, collapseButton, panelName);
+      saveCollapsedPanels();
+      toast(`${panelName} ${collapsed ? "collapsed" : "expanded"}.`);
+    });
+
+    panel.draggable = true;
+    heading.tabIndex = 0;
+    heading.setAttribute("role", "button");
+    heading.setAttribute("aria-label", `Move ${panelName}`);
+    heading.title = "Drag to rearrange. Alt+Arrow keys move this card in any direction.";
+
+    heading.addEventListener("pointerdown", event => {
+      panel.dataset.dragArmed = event.target.closest("button, a, input, label") ? "false" : "true";
+    });
+
+    heading.addEventListener("keydown", event => {
+      if (!event.altKey || !["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
+      event.preventDefault();
+      const panels = $$(".dashboard-grid > .panel");
+      const target = nearestPanelInDirection(panel, panels, event.key);
+      if (!target) return;
+      // Swap the two cards rather than inserting across the intervening items. This preserves both
+      // positions when cards have different saved widths and heights.
+      const marker = document.createComment("dashboard-card-swap");
+      panel.replaceWith(marker);
+      target.replaceWith(panel);
+      marker.replaceWith(target);
+      savePanelOrder();
+      heading.focus();
+      toast(`Moved ${heading.querySelector("h3")?.textContent || "card"} ${event.key.replace("Arrow", "").toLowerCase()}.`);
+    });
+
+    panel.addEventListener("dragstart", event => {
+      if (panel.dataset.dragArmed !== "true") {
+        event.preventDefault();
+        return;
+      }
+      dragged = panel;
+      panel.classList.add("dragging");
+      panel.setAttribute("aria-grabbed", "true");
+      event.dataTransfer.effectAllowed = "move";
+      event.dataTransfer.setData("text/plain", panel.dataset.panelId);
+    });
+
+    panel.addEventListener("dragend", () => {
+      panel.classList.remove("dragging");
+      panel.setAttribute("aria-grabbed", "false");
+      panel.dataset.dragArmed = "false";
+      clearDropIndicators();
+      if (dragged) savePanelOrder();
+      dragged = null;
+    });
+  });
+
+  grid.addEventListener("dragover", event => {
+    if (!dragged) return;
+    event.preventDefault();
+    event.dataTransfer.dropEffect = "move";
+    const target = event.target.closest(".panel");
+    if (!target || target === dragged || !grid.contains(target)) return;
+    const rect = target.getBoundingClientRect();
+    const after = event.clientY > rect.top + rect.height / 2;
+    clearDropIndicators();
+    target.classList.add(after ? "drop-after" : "drop-before");
+    if (after) target.after(dragged);
+    else target.before(dragged);
+  });
+
+  grid.addEventListener("drop", event => {
+    if (!dragged) return;
+    event.preventDefault();
+    savePanelOrder();
+    clearDropIndicators();
+  });
+
+  $("#reset-layout").addEventListener("click", () => {
+    applyPanelOrder(defaultPanelOrder);
+    $$(".dashboard-grid > .panel").forEach(panel => {
+      const heading = panel.querySelector(".panel-heading");
+      setPanelCollapsed(
+        panel,
+        false,
+        heading.querySelector(".panel-collapse-button"),
+        heading.querySelector("h3")?.textContent || "dashboard card"
+      );
+      panel.removeAttribute("data-panel-span");
+      panel.removeAttribute("data-panel-height");
+      panel.style.removeProperty("--panel-span");
+      panel.style.removeProperty("--panel-height");
+    });
+    localStorage.removeItem(collapsedPanelsStorageKey);
+    localStorage.removeItem(panelSizesStorageKey);
+    savePanelOrder();
+    toast("Dashboard layout reset and all cards expanded.");
+  });
+
+  window.addEventListener("pagehide", () => {
+    const panelOrder = currentPanelOrder();
+    localStorage.setItem(layoutStorageKey, JSON.stringify(panelOrder));
+    fetch("/api/dashboard-layout", {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ panelOrder }),
+      keepalive: true
+    }).catch(() => {});
+  });
+}
+
+function nearestPanelInDirection(panel, panels, key) {
+  const source = panel.getBoundingClientRect();
+  const sourceX = source.left + source.width / 2;
+  const sourceY = source.top + source.height / 2;
+  const vertical = key === "ArrowUp" || key === "ArrowDown";
+  const sign = key === "ArrowUp" || key === "ArrowLeft" ? -1 : 1;
+  return panels
+    .filter(candidate => candidate !== panel)
+    .map(candidate => {
+      const rect = candidate.getBoundingClientRect();
+      const dx = rect.left + rect.width / 2 - sourceX;
+      const dy = rect.top + rect.height / 2 - sourceY;
+      const primary = vertical ? dy : dx;
+      const secondary = vertical ? dx : dy;
+      return { candidate, primary, score: Math.abs(primary) + Math.abs(secondary) * .35 };
+    })
+    .filter(item => Math.sign(item.primary) === sign && Math.abs(item.primary) > 8)
+    .sort((left, right) => left.score - right.score)[0]?.candidate || null;
+}
+
+function addPanelResizeHandle(panel, panelName, grid) {
+  const handle = document.createElement("button");
+  handle.type = "button";
+  handle.className = "panel-resize-handle";
+  handle.textContent = "◢";
+  handle.setAttribute("aria-label", `Resize ${panelName}`);
+  handle.title = "Drag to resize. Arrow keys resize while this handle is focused.";
+  panel.append(handle);
+
+  let resize = null;
+  handle.addEventListener("pointerdown", event => {
+    if (window.innerWidth <= 800 || panel.classList.contains("collapsed")) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const gridStyle = getComputedStyle(grid);
+    const gap = Number.parseFloat(gridStyle.columnGap) || 0;
+    const columnWidth = (grid.getBoundingClientRect().width - gap * 11) / 12;
+    const rect = panel.getBoundingClientRect();
+    resize = { pointerId: event.pointerId, x: event.clientX, y: event.clientY, width: rect.width, height: rect.height, gap, columnWidth };
+    panel.classList.add("resizing");
+    panel.draggable = false;
+    handle.setPointerCapture(event.pointerId);
+  });
+
+  handle.addEventListener("pointermove", event => {
+    if (!resize || event.pointerId !== resize.pointerId) return;
+    const width = Math.max(resize.columnWidth * 3, resize.width + event.clientX - resize.x);
+    const span = Math.max(3, Math.min(12, Math.round((width + resize.gap) / (resize.columnWidth + resize.gap))));
+    const height = Math.max(180, Math.round(resize.height + event.clientY - resize.y));
+    setPanelSize(panel, span, height);
+  });
+
+  const finishResize = event => {
+    if (!resize || event.pointerId !== resize.pointerId) return;
+    resize = null;
+    panel.classList.remove("resizing");
+    panel.draggable = true;
+    savePanelSizes();
+  };
+  handle.addEventListener("pointerup", finishResize);
+  handle.addEventListener("pointercancel", finishResize);
+  handle.addEventListener("keydown", event => {
+    if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
+    event.preventDefault();
+    const span = Number(panel.dataset.panelSpan || 6);
+    const height = Number(panel.dataset.panelHeight || Math.round(panel.getBoundingClientRect().height));
+    setPanelSize(
+      panel,
+      Math.max(3, Math.min(12, span + (event.key === "ArrowRight" ? 1 : event.key === "ArrowLeft" ? -1 : 0))),
+      Math.max(180, height + (event.key === "ArrowDown" ? 40 : event.key === "ArrowUp" ? -40 : 0))
+    );
+    savePanelSizes();
+  });
+}
+
+function setPanelSize(panel, span, height) {
+  panel.dataset.panelSpan = String(span);
+  panel.dataset.panelHeight = String(height);
+  panel.style.setProperty("--panel-span", span);
+  panel.style.setProperty("--panel-height", `${height}px`);
+}
+
+function applyPanelSize(panel, size) {
+  if (!size) return;
+  const span = Math.max(3, Math.min(12, Number(size.span) || 6));
+  const height = Math.max(180, Math.min(2400, Number(size.height) || 180));
+  setPanelSize(panel, span, height);
+}
+
+function readPanelSizes() {
+  try {
+    const sizes = JSON.parse(localStorage.getItem(panelSizesStorageKey) || "{}");
+    return sizes && typeof sizes === "object" && !Array.isArray(sizes) ? sizes : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePanelSizes() {
+  const sizes = {};
+  $$(".dashboard-grid > .panel").forEach(panel => {
+    if (!panel.dataset.panelSpan || !panel.dataset.panelHeight) return;
+    sizes[panel.dataset.panelId] = {
+      span: Number(panel.dataset.panelSpan),
+      height: Number(panel.dataset.panelHeight)
+    };
+  });
+  localStorage.setItem(panelSizesStorageKey, JSON.stringify(sizes));
+}
+
+function readCollapsedPanels() {
+  try {
+    const value = JSON.parse(localStorage.getItem(collapsedPanelsStorageKey) || "[]");
+    return new Set(Array.isArray(value) ? value.filter(id => typeof id === "string") : []);
+  } catch {
+    return new Set();
+  }
+}
+
+function saveCollapsedPanels() {
+  // Collapse preferences are specific to this browser display, unlike the shared durable card order.
+  const collapsed = $$(".dashboard-grid > .panel.collapsed").map(panel => panel.dataset.panelId);
+  localStorage.setItem(collapsedPanelsStorageKey, JSON.stringify(collapsed));
+}
+
+function setPanelCollapsed(panel, collapsed, button, panelName) {
+  panel.classList.toggle("collapsed", collapsed);
+  button.textContent = collapsed ? "+" : "−";
+  button.setAttribute("aria-expanded", String(!collapsed));
+  button.setAttribute("aria-label", `${collapsed ? "Expand" : "Collapse"} ${panelName}`);
+  button.title = `${collapsed ? "Expand" : "Collapse"} ${panelName}`;
+}
+
+function readLocalPanelOrder() {
+  try {
+    const value = JSON.parse(localStorage.getItem(layoutStorageKey) || "[]");
+    return Array.isArray(value) ? value : [];
+  } catch {
+    return [];
+  }
+}
+
+async function readSavedPanelOrder() {
+  const local = readLocalPanelOrder();
+  try {
+    const saved = await api("/api/dashboard-layout");
+    return Array.isArray(saved?.panelOrder) && saved.panelOrder.length ? saved.panelOrder : local;
+  } catch {
+    return local;
+  }
+}
+
+function applyPanelOrder(order) {
+  const grid = $(".dashboard-grid");
+  const panels = new Map($$(".dashboard-grid > .panel").map(panel => [panel.dataset.panelId, panel]));
+  order.forEach(id => { if (panels.has(id)) grid.append(panels.get(id)); });
+  defaultPanelOrder.forEach(id => { if (panels.has(id) && !order.includes(id)) grid.append(panels.get(id)); });
+}
+
+function savePanelOrder() {
+  const order = currentPanelOrder();
+  localStorage.setItem(layoutStorageKey, JSON.stringify(order));
+  // Serialize writes so rapid keyboard/drag moves cannot arrive at the server out of order.
+  layoutSaveChain = layoutSaveChain
+    .catch(() => {})
+    .then(() => api("/api/dashboard-layout", {
+      method: "PUT",
+      body: JSON.stringify({ panelOrder: order })
+    }))
+    .catch(error => console.warn("Dashboard layout could not be saved to the app store.", error));
+}
+
+function currentPanelOrder() {
+  return $$(".dashboard-grid > .panel").map(panel => panel.dataset.panelId);
+}
+
+function clearDropIndicators() {
+  $$(".dashboard-grid > .panel").forEach(panel => panel.classList.remove("drop-before", "drop-after"));
+}
+
+async function loadWowAddons(refresh = false) {
+  try {
+    state.wow = await api(`/api/wow/addons${refresh ? "?refresh=true" : ""}`);
+    const select = $("#wow-edition");
+    select.innerHTML = state.wow.editions.map(edition =>
+      `<option value="${escapeHtml(edition.id)}">${escapeHtml(edition.name)}</option>`
+    ).join("");
+    if (!state.wow.editions.some(edition => edition.id === state.wowEditionId)) {
+      state.wowEditionId = state.wow.editions[0]?.id || "";
+    }
+    select.value = state.wowEditionId;
+    renderWowEdition();
+  } catch (error) {
+    $("#wow-addon-list").className = "wow-addon-list empty-state";
+    $("#wow-addon-list").textContent = error.message;
+  }
+}
+
+// --- World of Warcraft addon and encounter tools --------------------------------------------
+
+async function loadAddonPresets() {
+  try {
+    state.wowPresets = await api("/api/wow/addon-presets");
+    renderAddonPresets();
+  } catch (error) {
+    state.wowPresets = [];
+    toast(error.message, true);
+  }
+}
+
+function renderAddonPresets() {
+  const select = $("#wow-addon-preset");
+  const presets = (state.wowPresets || []).filter(preset => preset.editionId === state.wowEditionId);
+  const previous = select.value;
+  select.innerHTML = presets.length
+    ? presets.map(preset => `<option value="${escapeHtml(preset.name)}">${escapeHtml(preset.name)} · ${preset.enabledCount} on</option>`).join("")
+    : '<option value="">No saved presets</option>';
+  if (presets.some(preset => preset.name === previous)) select.value = previous;
+  const available = Boolean(select.value && state.wowProfileId);
+  $("#apply-addon-preset").disabled = !available || Boolean(state.wow?.gameRunning);
+  $("#delete-addon-preset").disabled = !select.value;
+  $("#save-addon-preset").disabled = !state.wowProfileId;
+}
+
+function renderWowEdition() {
+  const edition = state.wow?.editions?.find(item => item.id === state.wowEditionId);
+  if (!edition) {
+    $("#wow-addon-list").textContent = "No WoW AddOns folder was found.";
+    return;
+  }
+
+  $("#wow-addon-count").textContent = edition.addonFolderCount;
+  $("#wow-addon-size").textContent = `${Math.round(edition.totalAddonSizeMb)} MB`;
+  $("#wow-profile-age").textContent = edition.profileCapturedAt ? timeAgo(edition.profileCapturedAt) : "No data";
+  $("#install-wow-profiler").textContent = edition.profilerInstalled ? "Update profiler addon" : "Install profiler addon";
+  const hasRuntimeData = edition.addons.some(addon => addon.recentAverageMs != null);
+  $("#addon-metric-heading").textContent = hasRuntimeData ? "Recent / peak CPU" : "Disk / saved data";
+  $("#wow-profiler-help").textContent = hasRuntimeData
+    ? "Profiler data is ranked by recent average execution time. A large peak or repeated 10ms+ spikes is more suspicious than folder size."
+    : "Install the companion, play normally, then type /ssp followed by /reload. John's Twitch Handler will rank addons by recent and peak execution time.";
+
+  const profileSelect = $("#wow-character-profile");
+  profileSelect.innerHTML = edition.characterProfiles?.length
+    ? edition.characterProfiles.map(profile => `<option value="${escapeHtml(profile.id)}">${escapeHtml(profile.character)} · ${escapeHtml(profile.realm)} (${profile.enabledCount} on)</option>`).join("")
+    : '<option value="">No character profiles found</option>';
+  if (!edition.characterProfiles?.some(profile => profile.id === state.wowProfileId)) {
+    state.wowProfileId = edition.characterProfiles?.[0]?.id || "";
+  }
+  profileSelect.value = state.wowProfileId;
+  profileSelect.disabled = !edition.characterProfiles?.length;
+  const selectedProfile = edition.characterProfiles?.find(profile => profile.id === state.wowProfileId);
+  renderAddonPresets();
+
+  const relevantInsights = (state.wow.insights || []).filter(insight => insight.startsWith(`${edition.name}:`));
+  $("#wow-insights").innerHTML = relevantInsights.map(insight =>
+    `<div class="wow-insight">${escapeHtml(insight.replace(`${edition.name}: `, ""))}</div>`
+  ).join("");
+
+  const addons = edition.addons.slice(0, 16);
+  const list = $("#wow-addon-list");
+  list.className = "wow-addon-list";
+  list.innerHTML = addons.map(addon => {
+    const runtime = addon.recentAverageMs != null;
+    const recent = Number(addon.recentAverageMs || 0);
+    const costClass = runtime ? (recent >= 2 ? "hot" : recent >= .5 ? "warn" : "") : "";
+    const primary = runtime ? `${recent.toFixed(3)} ms` : `${Number(addon.folderSizeMb).toFixed(1)} MB`;
+    const secondary = runtime
+      ? `peak ${Number(addon.peakMs || 0).toFixed(1)} ms · ${addon.spikesOver10Ms || 0} spikes >10ms`
+      : `${Number(addon.savedVariablesSizeMb).toFixed(1)} MB saved data`;
+    const enabled = selectedProfile?.addonStates?.[addon.folderName];
+    const toggle = selectedProfile
+      ? `<button class="addon-toggle ${enabled === false ? "disabled" : "enabled"}" data-addon-toggle="${escapeHtml(addon.folderName)}" data-enabled="${enabled !== false}" ${state.wow.gameRunning ? "disabled" : ""}>${enabled === false ? "Disabled" : "Enabled"}</button>`
+      : "";
+    return `<div class="addon-row">
+      <div class="addon-copy"><strong>${escapeHtml(addon.title)}</strong><small>${escapeHtml(addon.folderName)}${addon.version ? ` · ${escapeHtml(addon.version)}` : ""}</small></div>
+      <div class="addon-cost ${costClass}"><strong>${primary}</strong><small>${secondary}</small></div>
+      ${toggle}
+    </div>`;
+  }).join("");
+}
+
+async function refreshWowEvents() {
+  try {
+    state.wowEvents = await api("/api/wow/events");
+    renderWowEvents();
+  } catch (error) {
+    $("#wow-events-state").textContent = "Unavailable";
+    $("#wow-events-status").textContent = error.message;
+  }
+}
+
+function renderWowEvents() {
+  const snapshot = state.wowEvents;
+  if (!snapshot) return;
+  $("#wow-events-state").textContent = snapshot.combatLogFound ? "Watching" : "Setup needed";
+  $("#auto-mark-bosses").checked = snapshot.autoMarkBossKills;
+  $("#auto-save-boss-replay").checked = snapshot.autoSaveReplay;
+  $("#auto-tangia-boss-focus").checked = snapshot.autoTangiaBossFocus;
+  $("#auto-save-boss-replay").disabled = !snapshot.autoMarkBossKills;
+  const status = $("#wow-events-status");
+  status.textContent = snapshot.status;
+  status.classList.toggle("alert", !snapshot.combatLogFound);
+  const verification = $("#boss-focus-verification");
+  verification.textContent = snapshot.bossFocusTestStatus;
+  verification.classList.toggle("alert", /failed/i.test(snapshot.bossFocusTestStatus));
+  verification.classList.toggle("success", snapshot.bossFocusTestsRemaining === 0 && !/failed/i.test(snapshot.bossFocusTestStatus));
+  const list = $("#wow-event-list");
+  if (!snapshot.recentEvents?.length) {
+    list.className = "wow-event-list empty-state";
+    list.textContent = "Boss pulls and victories will appear here.";
+    return;
+  }
+  list.className = "wow-event-list";
+  list.innerHTML = snapshot.recentEvents.map(event => {
+    const victory = event.type === "encounter-end" && event.success === true;
+    const result = event.type === "encounter-start" ? "Pull started" : victory ? "Victory marked" : "Encounter ended";
+    return `<div class="wow-event-row"><span class="wow-event-icon">${victory ? "✓" : event.type === "encounter-start" ? "▶" : "×"}</span><div><strong>${escapeHtml(event.title)}</strong><small>${result}</small></div><time>${formatAlertTime(event.at)}</time></div>`;
+  }).join("");
+}
+
+async function saveWowEventOptions() {
+  try {
+    state.wowEvents = await api("/api/wow/events", {
+      method: "PUT",
+      body: JSON.stringify({
+        autoMarkBossKills: $("#auto-mark-bosses").checked,
+        autoSaveReplay: $("#auto-save-boss-replay").checked,
+        autoTangiaBossFocus: $("#auto-tangia-boss-focus").checked
+      })
+    });
+    renderWowEvents();
+  } catch (error) { toast(error.message, true); }
+}
+
+function timeAgo(value) {
+  const seconds = Math.max(0, (Date.now() - new Date(value).valueOf()) / 1000);
+  if (seconds < 60) return "just now";
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  return `${Math.floor(seconds / 86400)}d ago`;
+}
+
+async function switchScene(sceneName) {
+  try {
+    await api("/api/obs/scene", { method: "POST", body: JSON.stringify({ sceneName }) });
+    state.obs.currentScene = sceneName;
+    renderObs();
+    toast(`Switched to ${sceneName}`);
+  } catch (error) { toast(error.message, true); }
+}
+
+async function addMarker(title = null, kind = "clip", options = {}) {
+  const markerTitle = title || $("#marker-title").value.trim() || "Highlight";
+  try {
+    const result = await api("/api/markers", {
+      method: "POST",
+      body: JSON.stringify({
+        title: markerTitle,
+        kind,
+        saveReplay: options.saveReplay ?? $("#save-replay").checked,
+        createTwitchClip: options.createTwitchClip ?? $("#create-twitch-clip").checked
+      })
+    });
+    $("#marker-title").value = "";
+    const suffix = result.warnings?.length ? ` ${result.warnings.join(" ")}` : "";
+    const message = result.marker.twitchClipId
+      ? `Clip created: ${result.marker.title}. It is ready for StreamLadder.`
+      : `Marked: ${result.marker.title}.`;
+    toast(`${message}${suffix}`, result.warnings?.length > 0);
+    await refreshReport(false);
+    await refreshPreflight();
+  } catch (error) { toast(error.message, true); }
+}
+
+async function toggleSession() {
+  try {
+    if (state.sessionActive) {
+      await endTrackedSession(false);
+      return;
+    } else {
+      await refreshPreflight();
+      const missing = [];
+      if (!state.preflight.obsConnected) missing.push("OBS is not connected");
+      if (!state.preflight.microphoneReady) missing.push("the OBS microphone is not ready");
+      if (!state.preflight.nvidiaBroadcast.running) missing.push("NVIDIA Broadcast is not running");
+      const uncheckedManualItems = state.manualPreflightItems.filter(item => !item.checked).map(item => item.label);
+      if (uncheckedManualItems.length) missing.push(`manual reminders are not checked: ${uncheckedManualItems.join(", ")}`);
+      if (missing.length && !window.confirm(`${missing.join(" and ")}. Start the session anyway?`)) return;
+      const session = await api("/api/session/start", {
+        method: "POST",
+        body: JSON.stringify({ title: $("#stream-title").value.trim() })
+      });
+      state.sessionActive = true;
+      state.report = { title: session.title, durationMinutes: 0, highlightCount: 0, sceneChangeCount: 0, markers: [] };
+      toast("Session tracking started.");
+    }
+    renderSession();
+    await refreshPreflight();
+  } catch (error) { toast(error.message, true); }
+}
+
+async function endTrackedSession(automatic) {
+  if (state.autoEndingSession || !state.sessionActive) return;
+  state.autoEndingSession = true;
+  try {
+    const report = await api("/api/session/end", { method: "POST" });
+    state.sessionActive = false;
+    // Manual reminders are reusable definitions, but completion belongs to one show. Reset them
+    // after the report is created so the next stream cannot inherit stale green checkmarks.
+    state.manualPreflightItems = state.manualPreflightItems.map(item => ({ ...item, checked: false }));
+    saveManualPreflightItems();
+    renderManualPreflightItems();
+    renderReport(report);
+    renderSession();
+    await refreshPreflight();
+    toast(automatic ? "OBS ended the stream. Your post-stream report is ready." : "Session finished. Your report is ready.");
+    // Ending a session should immediately surface the review workflow even if the report card
+    // was previously collapsed or moved farther down the dashboard.
+    window.setTimeout(revealPostStreamReport, 100);
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    state.autoEndingSession = false;
+  }
+}
+
+async function refreshReport(latest = false) {
+  try {
+    const report = await api(latest ? "/api/reports/latest" : "/api/session");
+    if (report) renderReport(report);
+  } catch (error) {
+    if (!latest) return;
+    toast(error.message, true);
+  }
+}
+
+function escapeHtml(value) {
+  return String(value ?? "").replace(/[&<>'"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
+}
+function formatOffset(seconds) {
+  const whole = Math.max(0, Math.floor(seconds || 0));
+  return `${String(Math.floor(whole / 60)).padStart(2, "0")}:${String(whole % 60).padStart(2, "0")}`;
+}
+
+// --- Chat commands, raids, and viewer notes -------------------------------------------------
+
+async function refreshChatCommands() {
+  try {
+    state.chatCommands = await api("/api/chat-commands");
+    renderChatCommands();
+  } catch (error) {
+    $("#commands-state").textContent = "Unavailable";
+    $("#command-list").textContent = error.message;
+  }
+}
+
+function renderChatCommands() {
+  const list = $("#command-list");
+  const connection = state.preflight?.twitchConnected ? "ready" : "Twitch offline";
+  $("#commands-state").textContent = `${state.chatCommands.length} custom + 2 built-in · ${connection}`;
+  if (!state.chatCommands.length) {
+    list.className = "managed-list empty-state";
+    list.textContent = "No custom commands yet. !song and !playing are already available.";
+    return;
+  }
+  list.className = "managed-list";
+  list.innerHTML = state.chatCommands.map(command => `
+    <div class="managed-row ${command.enabled ? "" : "disabled"}">
+      <div><strong>${escapeHtml(command.command)}</strong><small>${escapeHtml(command.response)} · ${command.cooldownSeconds}s cooldown</small></div>
+      <div class="row-actions"><button class="text-button" data-command-edit="${escapeHtml(command.command)}">Edit</button><button class="text-button danger" data-command-delete="${escapeHtml(command.command)}">Delete</button></div>
+    </div>`).join("");
+}
+
+function resetCommandEditor() {
+  $("#command-name").value = "";
+  $("#command-name").disabled = false;
+  $("#command-response").value = "";
+  $("#command-cooldown").value = "15";
+  $("#command-enabled").checked = true;
+  $("#cancel-command-edit").hidden = true;
+}
+
+async function saveChatCommand() {
+  try {
+    await api("/api/chat-commands", {
+      method: "PUT",
+      body: JSON.stringify({
+        command: $("#command-name").value.trim(),
+        response: $("#command-response").value.trim(),
+        enabled: $("#command-enabled").checked,
+        cooldownSeconds: Number($("#command-cooldown").value)
+      })
+    });
+    resetCommandEditor();
+    await refreshChatCommands();
+    toast("Chat command saved.");
+  } catch (error) { toast(error.message, true); }
+}
+
+async function refreshAutomations() {
+  try {
+    state.automations = await api("/api/automations");
+    renderAutomations();
+  } catch (error) {
+    $("#automations-state").textContent = "Unavailable";
+    $("#automation-list").textContent = error.message;
+  }
+}
+
+function automationActionLabel(action) {
+  return ({ "chat-message": "Twitch message", "switch-scene": "OBS scene", marker: "Stream marker" })[action] || action;
+}
+
+function renderAutomations() {
+  const list = $("#automation-list");
+  const enabled = state.automations.filter(item => item.enabled).length;
+  $("#automations-state").textContent = `${enabled} enabled · local only`;
+  if (!state.automations.length) {
+    list.className = "managed-list empty-state";
+    list.textContent = "No automations yet. Add a manual action or repeating session reminder.";
+    return;
+  }
+  list.className = "managed-list";
+  list.innerHTML = state.automations.map(item => {
+    const trigger = item.triggerType === "interval" ? `Every ${item.intervalMinutes} minutes during a session` : "Manual trigger";
+    const lastRun = item.lastRunAt ? `${timeAgo(item.lastRunAt)} · ${item.lastResult}` : item.lastResult;
+    return `<div class="managed-row ${item.enabled ? "" : "disabled"}">
+      <div><strong>${escapeHtml(item.name)}</strong><small>${escapeHtml(trigger)} · ${escapeHtml(automationActionLabel(item.actionType))}</small><small>${escapeHtml(lastRun || "Not run yet")}</small></div>
+      <div class="row-actions"><button class="secondary" data-automation-run="${item.id}">Run</button><button class="text-button" data-automation-edit="${item.id}">Edit</button><button class="text-button danger" data-automation-delete="${item.id}">Delete</button></div>
+    </div>`;
+  }).join("");
+}
+
+function resetAutomationEditor() {
+  $("#automation-id").value = "";
+  $("#automation-name").value = "";
+  $("#automation-trigger").value = "manual";
+  $("#automation-interval").value = "30";
+  $("#automation-action").value = "chat-message";
+  $("#automation-value").value = "";
+  $("#automation-enabled").checked = true;
+  $("#automation-interval-label").hidden = true;
+  $("#cancel-automation-edit").hidden = true;
+}
+
+async function saveAutomation() {
+  try {
+    const id = $("#automation-id").value;
+    await api("/api/automations", {
+      method: "PUT",
+      body: JSON.stringify({
+        id: id || null,
+        name: $("#automation-name").value.trim(),
+        enabled: $("#automation-enabled").checked,
+        triggerType: $("#automation-trigger").value,
+        intervalMinutes: Number($("#automation-interval").value),
+        actionType: $("#automation-action").value,
+        value: $("#automation-value").value.trim()
+      })
+    });
+    resetAutomationEditor();
+    await refreshAutomations();
+    toast("Automation saved locally.");
+  } catch (error) { toast(error.message, true); }
+}
+
+async function refreshRaids(refresh = false) {
+  try {
+    state.raids = await api(`/api/raids?refresh=${refresh}&days=${state.raidDays}`);
+    renderRaids();
+  } catch (error) {
+    state.raids = { channels: [], history: [], warning: error.message };
+    renderRaids();
+  }
+}
+
+function renderRaids() {
+  const list = $("#raid-list");
+  const warning = $("#raid-warning");
+  warning.hidden = !state.raids.warning;
+  warning.textContent = state.raids.warning || "";
+  const channels = state.raids.channels || [];
+  const timeline = $("#raid-timeline");
+  const history = state.raids.history || [];
+  $("#raid-timeline-summary").textContent = `${history.length} event${history.length === 1 ? "" : "s"} in ${state.raidDays === 7 ? "1 week" : state.raidDays === 14 ? "2 weeks" : "1 month"}`;
+  if (!history.length) {
+    timeline.className = "raid-timeline empty-state";
+    timeline.textContent = "No raids recorded in this period.";
+  } else {
+    timeline.className = "raid-timeline";
+    timeline.innerHTML = history.map(event => `<div class="raid-event ${escapeHtml(event.direction)}">
+      <span class="raid-event-icon">${event.direction === "incoming" ? "↓" : "↑"}</span>
+      <div><strong>${event.direction === "incoming" ? `${escapeHtml(event.displayName)} raided you` : `You raided ${escapeHtml(event.displayName)}`}</strong>${event.detail ? `<small>${escapeHtml(event.detail)}</small>` : ""}</div>
+      <time>${formatAlertTime(event.at)}<br>${new Date(event.at).toLocaleDateString()}</time>
+    </div>`).join("");
+  }
+  if (!channels.length) {
+    list.className = "managed-list empty-state";
+    list.textContent = "Add channels you may want to raid. Incoming raiders will also appear automatically.";
+    return;
+  }
+  list.className = "managed-list";
+  list.innerHTML = channels.map(channel => {
+    const relationship = [
+      channel.lastRaidedAt ? `You raided ${timeAgo(channel.lastRaidedAt)}` : null,
+      channel.lastRaidedYouAt ? `Raided you ${timeAgo(channel.lastRaidedYouAt)}` : null
+    ].filter(Boolean).join(" · ") || "No raid history yet";
+    const liveDetail = channel.isLive
+      ? `${channel.gameName || "Live"} · ${channel.viewerCount ?? 0} viewers${channel.streamTitle ? ` · ${channel.streamTitle}` : ""}`
+      : relationship;
+    return `<div class="managed-row raid-row ${channel.isLive ? "live" : ""}">
+      <span class="live-dot" aria-label="${channel.isLive ? "Live" : "Offline"}"></span>
+      <div><strong><a href="https://twitch.tv/${encodeURIComponent(channel.channelName)}" target="_blank" rel="noreferrer">${escapeHtml(channel.displayName || channel.channelName)} ↗</a></strong><small>${escapeHtml(liveDetail)}</small>${channel.isLive ? `<small>${escapeHtml(relationship)}</small>` : ""}</div>
+      <div class="row-actions"><button class="secondary" data-raid-mark="${escapeHtml(channel.channelName)}">Mark raided</button><button class="text-button danger" data-raid-delete="${escapeHtml(channel.channelName)}">Remove</button></div>
+    </div>`;
+  }).join("");
+}
+
+async function refreshViewerNotes() {
+  try {
+    state.viewerNotes = await api("/api/viewer-notes");
+    renderViewerNotes();
+  } catch (error) {
+    $("#viewer-note-list").textContent = error.message;
+  }
+}
+
+function renderViewerNotes() {
+  const list = $("#viewer-note-list");
+  $("#viewers-state").textContent = `${state.viewerNotes.length} remembered · local only`;
+  if (!state.viewerNotes.length) {
+    list.className = "managed-list empty-state";
+    list.textContent = "Regular viewers will appear here as they chat or interact.";
+    return;
+  }
+  list.className = "managed-list";
+  list.innerHTML = state.viewerNotes.map(viewer => `
+    <div class="managed-row viewer-row">
+      <div><strong>${escapeHtml(viewer.userName)}</strong><small>${escapeHtml(viewer.note || "No private note yet")}</small><small>Last seen ${timeAgo(viewer.lastSeenAt)} · ${escapeHtml(viewer.lastActivity)} · ${viewer.activityCount} interaction${viewer.activityCount === 1 ? "" : "s"}</small></div>
+      <div class="row-actions"><button class="text-button" data-viewer-edit="${escapeHtml(viewer.userName)}">Edit</button><button class="text-button danger" data-viewer-delete="${escapeHtml(viewer.userName)}">Delete</button></div>
+    </div>`).join("");
+}
+
+function resetViewerEditor() {
+  $("#viewer-name").value = "";
+  $("#viewer-name").disabled = false;
+  $("#viewer-note").value = "";
+  $("#cancel-viewer-edit").hidden = true;
+}
+
+async function saveViewerNote() {
+  try {
+    await api("/api/viewer-notes", {
+      method: "PUT",
+      body: JSON.stringify({ userName: $("#viewer-name").value.trim(), note: $("#viewer-note").value.trim() })
+    });
+    resetViewerEditor();
+    await refreshViewerNotes();
+    toast("Viewer note saved locally.");
+  } catch (error) { toast(error.message, true); }
+}
+
+// --- User actions ----------------------------------------------------------------------------
+
+async function refreshConnectionDiagnostics() {
+  const list = $("#connection-diagnostics-list");
+  try {
+    const entries = await api("/api/diagnostics/connections");
+    list.innerHTML = entries.length ? entries.map(entry => `
+      <div class="connection-log-row ${escapeHtml(entry.level)}">
+        <time>${escapeHtml(formatAlertTime(entry.at))}</time>
+        <strong>${escapeHtml(entry.service)}</strong>
+        <span>${escapeHtml(entry.message)}</span>
+      </div>`).join("") : "No connection attempts have been logged yet.";
+  } catch (error) {
+    list.textContent = error.message;
+  }
+}
+
+function openSettings() {
+  $("#settings-dialog").showModal();
+  refreshConnectionDiagnostics();
+}
+
+$("#settings-button").addEventListener("click", openSettings);
+$$('[data-open-settings]').forEach(button => button.addEventListener("click", openSettings));
+$("#add-manual-preflight").addEventListener("click", addManualPreflightItem);
+$("#manual-preflight-name").addEventListener("keydown", event => {
+  if (event.key === "Enter") { event.preventDefault(); addManualPreflightItem(); }
+});
+$("#manual-preflight-items").addEventListener("change", event => {
+  const checkbox = event.target.closest(".manual-preflight-checkbox");
+  if (!checkbox) return;
+  const row = checkbox.closest("[data-manual-preflight-id]");
+  const item = state.manualPreflightItems.find(entry => entry.id === row?.dataset.manualPreflightId);
+  if (!item) return;
+  item.checked = checkbox.checked;
+  saveManualPreflightItems();
+  renderManualPreflightItems();
+});
+$("#manual-preflight-items").addEventListener("click", event => {
+  const remove = event.target.closest(".manual-preflight-remove");
+  if (!remove) return;
+  event.preventDefault();
+  event.stopPropagation();
+  const row = remove.closest("[data-manual-preflight-id]");
+  const item = state.manualPreflightItems.find(entry => entry.id === row?.dataset.manualPreflightId);
+  state.manualPreflightItems = state.manualPreflightItems.filter(entry => entry.id !== row?.dataset.manualPreflightId);
+  saveManualPreflightItems();
+  renderManualPreflightItems();
+  if (item) toast(`Removed “${item.label}” from Preflight.`);
+});
+$("#manage-preflight-visibility").addEventListener("click", () => {
+  renderPreflightVisibilityList();
+  $("#preflight-visibility-dialog").showModal();
+});
+$("#preflight-visibility-list").addEventListener("change", event => {
+  const checkbox = event.target.closest("[data-preflight-visible]");
+  if (!checkbox) return;
+  if (checkbox.checked) hiddenPreflightRows.delete(checkbox.dataset.preflightVisible);
+  else hiddenPreflightRows.add(checkbox.dataset.preflightVisible);
+  savePreflightVisibility();
+});
+$("#reset-preflight-visibility").addEventListener("click", () => {
+  hiddenPreflightRows.clear();
+  savePreflightVisibility();
+  renderPreflightVisibilityList();
+  toast("All built-in Preflight fields are visible.");
+});
+$$('[data-integration-choice]').forEach(button => button.addEventListener("click", () =>
+  setOptionalIntegration(button.dataset.integrationChoice, button.dataset.enabled === "true")));
+$("#refresh-button").addEventListener("click", async () => { await Promise.all([refreshPreflight(), refreshObs(), refreshSpotify(), refreshTangia(), refreshStreamElements(), refreshTikFinity(), refreshAds()]); });
+$$('[data-multistream-destination]').forEach(input => input.addEventListener("change", () => {
+  const destinations = readMultistreamDestinations();
+  destinations[input.dataset.multistreamDestination] = input.checked;
+  localStorage.setItem(multistreamDestinationsKey, JSON.stringify(destinations));
+  renderMultistreamPlan();
+}));
+$("#multistream-bitrate").addEventListener("change", event => {
+  localStorage.setItem(multistreamBitrateKey, event.target.value);
+  renderMultistreamPlan();
+});
+$("#streamelements-confirmed").addEventListener("change", async event => {
+  state.streamElementsConfirmed = event.target.checked;
+  localStorage.setItem("streamsidekick.streamElementsConfirmed", String(state.streamElementsConfirmed));
+  renderStreamElements();
+  await refreshPreflight();
+});
+$("#chat-popout").addEventListener("click", openGameChat);
+$("#chat-chime-enabled").addEventListener("change", saveChatChime);
+$("#chat-chime-volume").addEventListener("input", event => {
+  $("#chat-chime-volume-value").textContent = `${Number(event.target.value).toFixed(0).replace("-", "−")} dB`;
+});
+$("#chat-chime-volume").addEventListener("change", saveChatChime);
+$("#test-chat-chime").addEventListener("click", async () => {
+  try {
+    state.chatChime = await api("/api/chat-chime/test", { method: "POST" });
+    await refreshChatChime();
+    toast(state.chatChime.status, !state.chatChime.safeToPlay);
+  } catch (error) { toast(error.message, true); }
+});
+$$("[data-scroll-panel]").forEach(button => button.addEventListener("click", () => {
+  const panel = document.querySelector(`[data-panel-id="${CSS.escape(button.dataset.scrollPanel)}"]`);
+  panel?.scrollIntoView({ behavior: "smooth", block: "center" });
+}));
+$("#session-toggle").addEventListener("click", toggleSession);
+$("#add-marker").addEventListener("click", () => addMarker());
+$("#create-social-clip").addEventListener("click", () => addMarker(null, "clip", { createTwitchClip: true }));
+$("#marker-title").addEventListener("keydown", event => { if (event.key === "Enter") addMarker(); });
+$$('[data-marker]').forEach(button => button.addEventListener("click", () => addMarker(button.dataset.marker, button.dataset.kind)));
+$("#unmute-microphone").addEventListener("click", async () => {
+  const microphone = state.preflight?.microphone;
+  if (!microphone?.connected) {
+    openSettings();
+    return;
+  }
+  if (!microphone.found) {
+    document.querySelector('[data-panel-id="audio"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
+    toast("No OBS microphone was recognized. Name the source Mic/Aux or include Mic in its name.", true);
+    return;
+  }
+  try {
+    await api("/api/obs/microphone/unmute", { method: "POST" });
+    await Promise.all([refreshAudio(true), refreshPreflight()]);
+    toast(`${microphone.sourceName || "Microphone"} unmuted in OBS.`);
+  } catch (error) { toast(error.message, true); }
+});
+$("#load-latest").addEventListener("click", () => refreshReport(true));
+$("#post-stream-checklist").addEventListener("change", event => {
+  if (!event.target.matches("[data-post-task]")) return;
+  const key = event.currentTarget.dataset.storageKey;
+  if (!key) return;
+  const completed = [...event.currentTarget.querySelectorAll("[data-post-task]:checked")].map(input => input.dataset.postTask);
+  localStorage.setItem(key, JSON.stringify(completed));
+});
+$("#clip-publishing-queue").addEventListener("change", event => {
+  const input = event.target.closest("[data-clip-platform]");
+  if (!input) return;
+  const publishing = readClipPublishingState();
+  publishing[input.dataset.clipId] = {
+    ...(publishing[input.dataset.clipId] || {}),
+    [input.dataset.clipPlatform]: input.checked
+  };
+  localStorage.setItem(clipPublishingStorageKey, JSON.stringify(publishing));
+});
+$("#clip-publishing-queue").addEventListener("click", async event => {
+  const button = event.target.closest("[data-open-streamladder]");
+  if (!button) return;
+  const clipUrl = button.dataset.openStreamladder;
+  // StreamLadder does not publish a direct integration API. Open its supported import workflow and
+  // put the public Twitch clip URL on the clipboard so the only remaining step is Paste.
+  window.open("https://app.streamladder.com/", "_blank", "noopener,noreferrer");
+  try {
+    await navigator.clipboard.writeText(clipUrl);
+    toast("Clip link copied. Paste it into StreamLadder, then publish to TikTok or YouTube from its Content Publisher.");
+  } catch {
+    window.prompt("Copy this Twitch clip URL into StreamLadder:", clipUrl);
+  }
+});
+$("#save-command").addEventListener("click", saveChatCommand);
+$("#cancel-command-edit").addEventListener("click", resetCommandEditor);
+$("#command-list").addEventListener("click", async event => {
+  const edit = event.target.closest("[data-command-edit]");
+  const remove = event.target.closest("[data-command-delete]");
+  if (edit) {
+    const command = state.chatCommands.find(item => item.command === edit.dataset.commandEdit);
+    if (!command) return;
+    $("#command-name").value = command.command;
+    $("#command-name").disabled = true;
+    $("#command-response").value = command.response;
+    $("#command-cooldown").value = command.cooldownSeconds;
+    $("#command-enabled").checked = command.enabled;
+    $("#cancel-command-edit").hidden = false;
+  } else if (remove && window.confirm(`Delete ${remove.dataset.commandDelete}?`)) {
+    try {
+      await api(`/api/chat-commands/${encodeURIComponent(remove.dataset.commandDelete)}`, { method: "DELETE" });
+      await refreshChatCommands();
+      toast("Chat command deleted.");
+    } catch (error) { toast(error.message, true); }
+  }
+});
+$("#automation-trigger").addEventListener("change", event => {
+  $("#automation-interval-label").hidden = event.target.value !== "interval";
+});
+$("#save-automation").addEventListener("click", saveAutomation);
+$("#cancel-automation-edit").addEventListener("click", resetAutomationEditor);
+$("#automation-list").addEventListener("click", async event => {
+  const run = event.target.closest("[data-automation-run]");
+  const edit = event.target.closest("[data-automation-edit]");
+  const remove = event.target.closest("[data-automation-delete]");
+  const id = run?.dataset.automationRun || edit?.dataset.automationEdit || remove?.dataset.automationDelete;
+  const item = state.automations.find(candidate => candidate.id === id);
+  if (!item) return;
+  if (edit) {
+    $("#automation-id").value = item.id;
+    $("#automation-name").value = item.name;
+    $("#automation-trigger").value = item.triggerType;
+    $("#automation-interval").value = item.intervalMinutes || 30;
+    $("#automation-action").value = item.actionType;
+    $("#automation-value").value = item.value;
+    $("#automation-enabled").checked = item.enabled;
+    $("#automation-interval-label").hidden = item.triggerType !== "interval";
+    $("#cancel-automation-edit").hidden = false;
+  } else if (run) {
+    try {
+      const result = await api(`/api/automations/${encodeURIComponent(id)}/run`, { method: "POST" });
+      await refreshAutomations();
+      toast(`${item.name}: ${result.lastResult}`);
+    } catch (error) { toast(error.message, true); }
+  } else if (remove && window.confirm(`Delete ${item.name}?`)) {
+    try {
+      await api(`/api/automations/${encodeURIComponent(id)}`, { method: "DELETE" });
+      await refreshAutomations();
+      toast("Automation deleted.");
+    } catch (error) { toast(error.message, true); }
+  }
+});
+$("#add-raid-channel").addEventListener("click", async () => {
+  try {
+    await api("/api/raids/suggested", { method: "POST", body: JSON.stringify({ channelName: $("#raid-channel").value.trim() }) });
+    $("#raid-channel").value = "";
+    await refreshRaids(true);
+    toast("Raid channel added.");
+  } catch (error) { toast(error.message, true); }
+});
+$("#refresh-raids").addEventListener("click", () => refreshRaids(true));
+$("#raid-range").addEventListener("change", event => {
+  state.raidDays = Number(event.target.value);
+  localStorage.setItem("streamsidekick.raidDays", String(state.raidDays));
+  refreshRaids(false);
+});
+$("#raid-list").addEventListener("click", async event => {
+  const mark = event.target.closest("[data-raid-mark]");
+  const remove = event.target.closest("[data-raid-delete]");
+  try {
+    if (mark) {
+      await api("/api/raids/mark", { method: "POST", body: JSON.stringify({ channelName: mark.dataset.raidMark }) });
+      await refreshRaids(false);
+      toast(`Recorded raid to ${mark.dataset.raidMark}.`);
+    } else if (remove && window.confirm(`Remove ${remove.dataset.raidDelete} from Raid Manager?`)) {
+      await api(`/api/raids/${encodeURIComponent(remove.dataset.raidDelete)}`, { method: "DELETE" });
+      await refreshRaids(false);
+      toast("Raid channel removed.");
+    }
+  } catch (error) { toast(error.message, true); }
+});
+$("#save-viewer-note").addEventListener("click", saveViewerNote);
+$("#cancel-viewer-edit").addEventListener("click", resetViewerEditor);
+$("#viewer-note-list").addEventListener("click", async event => {
+  const edit = event.target.closest("[data-viewer-edit]");
+  const remove = event.target.closest("[data-viewer-delete]");
+  if (edit) {
+    const viewer = state.viewerNotes.find(item => item.userName === edit.dataset.viewerEdit);
+    if (!viewer) return;
+    $("#viewer-name").value = viewer.userName;
+    $("#viewer-name").disabled = true;
+    $("#viewer-note").value = viewer.note || "";
+    $("#cancel-viewer-edit").hidden = false;
+  } else if (remove && window.confirm(`Delete the local note for ${remove.dataset.viewerDelete}?`)) {
+    try {
+      await api(`/api/viewer-notes/${encodeURIComponent(remove.dataset.viewerDelete)}`, { method: "DELETE" });
+      await refreshViewerNotes();
+      toast("Viewer note deleted.");
+    } catch (error) { toast(error.message, true); }
+  }
+});
+$("#apply-optimizer").addEventListener("click", () => runOptimizerAction("/api/obs/optimizer/apply"));
+$("#restore-optimizer").addEventListener("click", () => runOptimizerAction("/api/obs/optimizer/restore"));
+$("#save-replay-only").addEventListener("click", async () => {
+  try { await api("/api/obs/replay/save", { method: "POST" }); toast("Replay buffer saved."); }
+  catch (error) { toast(error.message, true); }
+});
+$("#audio-mixer").addEventListener("pointerdown", event => {
+  if (event.target.matches("[data-audio-volume]")) state.audioInteracting = true;
+});
+document.addEventListener("pointerup", () => { state.audioInteracting = false; });
+$("#audio-mixer").addEventListener("input", event => {
+  const slider = event.target.closest("[data-audio-volume]");
+  if (!slider) return;
+  const volume = Number(slider.value);
+  slider.style.setProperty("--fader", `${((volume + 60) / 66 * 100).toFixed(1)}%`);
+  slider.nextElementSibling.textContent = formatAudioDb(volume);
+});
+$("#audio-mixer").addEventListener("change", async event => {
+  const slider = event.target.closest("[data-audio-volume]");
+  if (!slider) return;
+  try {
+    await api("/api/obs/audio/volume", {
+      method: "POST",
+      body: JSON.stringify({ inputName: slider.dataset.audioVolume, volumeDb: Number(slider.value) })
+    });
+    await refreshAudio(true);
+  } catch (error) { toast(error.message, true); }
+});
+$("#audio-mixer").addEventListener("click", async event => {
+  const button = event.target.closest("[data-audio-mute]");
+  if (!button) return;
+  try {
+    button.disabled = true;
+    await api("/api/obs/audio/mute", {
+      method: "POST",
+      body: JSON.stringify({ inputName: button.dataset.audioMute, muted: button.dataset.muted !== "true" })
+    });
+    await refreshAudio(true);
+  } catch (error) { button.disabled = false; toast(error.message, true); }
+});
+$("#tangia-visibility").addEventListener("click", () => updateTangia(
+  "/api/tangia/visibility",
+  { visible: state.tangia?.visible === false },
+  state.tangia?.visible === false ? "Tangia is visible in the current scene." : "Tangia is hidden in the current scene."));
+$("#tangia-mute").addEventListener("click", () => updateTangia(
+  "/api/tangia/mute",
+  { muted: !state.tangia?.muted },
+  state.tangia?.muted ? "Tangia unmuted." : "Tangia muted."));
+$("#tangia-reload").addEventListener("click", () => updateTangia("/api/tangia/reload", null, "Tangia Browser Source reloaded."));
+$("#tangia-boss-focus").addEventListener("click", () => updateTangia(
+  "/api/tangia/boss-focus",
+  { enabled: !state.tangia?.bossFocusActive },
+  state.tangia?.bossFocusActive ? "Boss Focus ended; Tangia audio restored." : "Boss Focus enabled; Tangia is muted."));
+$("#tangia-volume").addEventListener("input", event => {
+  $("#tangia-volume-value").textContent = formatAudioDb(event.target.value);
+});
+$("#tangia-volume").addEventListener("change", event => updateTangia(
+  "/api/tangia/volume",
+  { volumeDb: Number(event.target.value) }));
+$("#log-tangia-interaction").addEventListener("click", async () => {
+  try {
+    const description = $("#tangia-interaction-note").value.trim();
+    await api("/api/tangia/interactions", { method: "POST", body: JSON.stringify({ description }) });
+    $("#tangia-interaction-note").value = "";
+    await refreshReport(false);
+    toast("Tangia interaction timestamp added to this session.");
+  } catch (error) { toast(error.message, true); }
+});
+$("#start-twitch-ad").addEventListener("click", () => startAdBreak(true));
+$("#start-ad-timer").addEventListener("click", () => startAdBreak(false));
+$("#launch-nvidia").addEventListener("click", async () => {
+  try {
+    await api("/api/nvidia-broadcast/launch", { method: "POST" });
+    toast("NVIDIA Broadcast launched.");
+    setTimeout(refreshPreflight, 1800);
+  } catch (error) { toast(error.message, true); }
+});
+$("#copy-music-overlay-url").addEventListener("click", async () => {
+  const url = `${window.location.origin}/music-overlay.html`;
+  try {
+    await navigator.clipboard.writeText(url);
+    toast("Music overlay URL copied. Paste it into an OBS Browser Source.");
+  } catch {
+    window.prompt("Copy this OBS Browser Source URL:", url);
+  }
+});
+$("#connect-obs").addEventListener("click", async () => {
+  const message = $("#settings-message");
+  try {
+    message.textContent = "Connecting…";
+    state.obs = await api("/api/obs/connect", {
+      method: "POST",
+      body: JSON.stringify({ url: $("#obs-url").value, password: $("#obs-password").value })
+    });
+    message.textContent = "OBS connected.";
+    renderObs();
+    await refreshAudio(true);
+    await refreshPreflight();
+  } catch (error) { message.textContent = `OBS: ${error.message}`; }
+  finally { await refreshConnectionDiagnostics(); }
+});
+$("#connect-twitch").addEventListener("click", async () => {
+  const message = $("#settings-message");
+  try {
+    const result = await api("/api/twitch/configure", {
+      method: "POST",
+      body: JSON.stringify({
+        clientId: $("#twitch-client-id").value,
+        accessToken: $("#twitch-token").value,
+        broadcasterId: $("#twitch-broadcaster-id").value,
+        channelName: $("#twitch-channel-name").value
+      })
+    });
+    loadChat($("#twitch-channel-name").value);
+    message.textContent = result.alertError
+      ? `Twitch connected, but live events need attention: ${result.alertError}`
+      : "Twitch connected. Alerts, song requests, and chat feedback will reconnect automatically.";
+    await refreshPreflight();
+    await refreshAlerts();
+  } catch (error) { message.textContent = error.message; }
+  finally { await refreshConnectionDiagnostics(); }
+});
+
+let twitchAuthorizationTimer = null;
+async function pollTwitchAuthorization() {
+  try {
+    const status = await api("/api/twitch/status");
+    $("#settings-message").textContent = status.status;
+    if (status.configured && status.renewable) {
+      clearTimeout(twitchAuthorizationTimer);
+      twitchAuthorizationTimer = null;
+      $("#connect-twitch-oauth").disabled = false;
+      if (status.channelName) loadChat(status.channelName);
+      await refreshPreflight();
+      await refreshAlerts();
+      await refreshConnectionDiagnostics();
+      toast("Twitch connected. Automatic token renewal is enabled.");
+      return;
+    }
+    twitchAuthorizationTimer = setTimeout(pollTwitchAuthorization, 2000);
+  } catch (error) {
+    $("#settings-message").textContent = `Twitch: ${error.message}`;
+    $("#connect-twitch-oauth").disabled = false;
+  }
+}
+
+$("#connect-twitch-oauth").addEventListener("click", async () => {
+  const clientId = $("#twitch-client-id").value.trim();
+  if (clientId) localStorage.setItem("streamsidekick.twitchClientId", clientId);
+  const button = $("#connect-twitch-oauth");
+  try {
+    button.disabled = true;
+    const result = await api("/api/twitch/auth/start", {
+      method: "POST",
+      body: JSON.stringify({ clientId: clientId || null })
+    });
+    $("#settings-message").textContent = result.message;
+    clearTimeout(twitchAuthorizationTimer);
+    twitchAuthorizationTimer = setTimeout(pollTwitchAuthorization, 2000);
+  } catch (error) {
+    button.disabled = false;
+    $("#settings-message").textContent = `Twitch: ${error.message}`;
+    await refreshConnectionDiagnostics();
+  }
+});
+
+$("#disconnect-twitch").addEventListener("click", async () => {
+  try {
+    clearTimeout(twitchAuthorizationTimer);
+    twitchAuthorizationTimer = null;
+    await api("/api/twitch/configure", { method: "DELETE" });
+    $("#connect-twitch-oauth").disabled = false;
+    $("#settings-message").textContent = "Twitch disconnected. Saved Twitch tokens were removed.";
+    await refreshPreflight();
+    await refreshConnectionDiagnostics();
+  } catch (error) { $("#settings-message").textContent = error.message; }
+});
+
+$("#show-youtube-chat").addEventListener("click", () => {
+  const videoId = extractYouTubeVideoId($("#youtube-live-url").value);
+  if (!videoId) {
+    $("#settings-message").textContent = "YouTube: Paste a livestream URL containing a valid 11-character video ID.";
+    return;
+  }
+  state.youtubeVideoId = videoId;
+  localStorage.setItem("streamsidekick.youtubeVideoId", videoId);
+  renderCombinedChat();
+  $("#settings-message").textContent = "YouTube live chat added. Automated messages remain Twitch-only.";
+  toast("YouTube chat added beside Twitch.");
+});
+$("#clear-youtube-chat").addEventListener("click", () => {
+  state.youtubeVideoId = "";
+  localStorage.removeItem("streamsidekick.youtubeVideoId");
+  $("#youtube-live-url").value = "";
+  renderCombinedChat();
+  $("#settings-message").textContent = "YouTube live chat removed from this computer.";
+});
+
+$("#test-alert").addEventListener("click", async () => {
+  try {
+    await api("/api/alerts/test", { method: "POST" });
+    await refreshAlerts();
+  } catch (error) { toast(error.message, true); }
+});
+
+$("#connect-spotify").addEventListener("click", async () => {
+  const clientId = $("#spotify-client-id").value.trim();
+  if (clientId) localStorage.setItem("streamsidekick.spotifyClientId", clientId);
+  if (!state.spotifyEnabled) {
+    state.spotifyEnabled = true;
+    localStorage.setItem("streamsidekick.spotifyEnabled", "true");
+    applyOptionalIntegrationState();
+  }
+  const button = $("#connect-spotify");
+  try {
+    button.disabled = true;
+    const result = await api("/api/spotify/auth/open", {
+      method: "POST",
+      body: JSON.stringify({ clientId: clientId || null })
+    });
+    $("#settings-message").textContent = result.message;
+  } catch (error) {
+    $("#settings-message").textContent = `Spotify: ${error.message}`;
+  } finally {
+    button.disabled = false;
+    await refreshConnectionDiagnostics();
+  }
+});
+$("#disconnect-spotify").addEventListener("click", async () => {
+  try {
+    await api("/api/spotify/disconnect", { method: "POST" });
+    await refreshSpotify();
+    $("#settings-message").textContent = "Spotify disconnected. No token was saved.";
+  } catch (error) { $("#settings-message").textContent = error.message; }
+});
+window.addEventListener("message", async event => {
+  if (event.origin !== window.location.origin || event.data?.type !== "streamsidekick-spotify-connected") return;
+  await refreshSpotify();
+  $("#settings-message").textContent = "Spotify connected.";
+  toast("Spotify connected. Start playback on a device to accept song requests.");
+  await refreshConnectionDiagnostics();
+});
+$("#search-spotify").addEventListener("click", searchSpotify);
+$("#spotify-search").addEventListener("keydown", event => { if (event.key === "Enter") searchSpotify(); });
+$("#skip-spotify").addEventListener("click", async () => {
+  const button = $("#skip-spotify");
+  try {
+    button.disabled = true;
+    const result = await api("/api/spotify/skip", { method: "POST" });
+    toast(result.message);
+    window.setTimeout(refreshSpotify, 700);
+  } catch (error) {
+    toast(error.message, true);
+  } finally {
+    window.setTimeout(() => { button.disabled = !state.spotify?.connected || !state.spotify?.playback; }, 800);
+  }
+});
+$("#spotify-search-results").addEventListener("click", async event => {
+  const button = event.target.closest("[data-spotify-queue]");
+  if (!button) return;
+  try {
+    button.disabled = true;
+    await api("/api/spotify/queue", {
+      method: "POST",
+      body: JSON.stringify({ uri: button.dataset.spotifyQueue, requester: "Streamer", sourceText: $("#spotify-search").value.trim() })
+    });
+    await refreshSpotify();
+    toast("Song added to the active Spotify queue.");
+  } catch (error) { button.disabled = false; toast(error.message, true); }
+});
+$("#spotify-request-list").addEventListener("click", async event => {
+  const approve = event.target.closest("[data-spotify-approve]");
+  const reject = event.target.closest("[data-spotify-reject]");
+  if (!approve && !reject) return;
+  try {
+    const requestId = (approve || reject).dataset[approve ? "spotifyApprove" : "spotifyReject"];
+    await api(approve ? "/api/spotify/requests/approve" : "/api/spotify/requests/reject", {
+      method: "POST",
+      body: JSON.stringify({ requestId })
+    });
+    await refreshSpotify();
+    toast(approve ? "Song request added to Spotify." : "Song request rejected.");
+  } catch (error) { toast(error.message, true); }
+});
+$("#save-spotify-options").addEventListener("click", async () => {
+  try {
+    const options = await api("/api/spotify/options", {
+      method: "PUT",
+      body: JSON.stringify({
+        rewardTitle: $("#spotify-reward-title").value.trim(),
+        autoQueue: $("#spotify-auto-queue").checked,
+        allowExplicit: $("#spotify-allow-explicit").checked
+      })
+    });
+    state.spotify.options = options;
+    renderSpotify();
+    toast("Spotify request settings saved for this app session.");
+  } catch (error) { toast(error.message, true); }
+});
+$("#test-spotify-request").addEventListener("click", async () => {
+  const query = $("#spotify-search").value.trim();
+  if (query.length < 2) { toast("Enter a song first, then test it as a viewer request.", true); return; }
+  try {
+    state.spotify = await api("/api/spotify/requests/test", {
+      method: "POST",
+      body: JSON.stringify({ query, requester: "Test viewer" })
+    });
+    renderSpotify();
+    toast(state.spotify.options.autoQueue ? "Test request sent to Spotify." : "Test request added for approval.");
+  } catch (error) { toast(error.message, true); }
+});
+
+$("#wow-edition").addEventListener("change", event => {
+  state.wowEditionId = event.target.value;
+  localStorage.setItem("streamsidekick.wowEdition", state.wowEditionId);
+  renderWowEdition();
+});
+$("#wow-character-profile").addEventListener("change", event => {
+  state.wowProfileId = event.target.value;
+  localStorage.setItem("streamsidekick.wowProfile", state.wowProfileId);
+  renderWowEdition();
+});
+$("#wow-addon-preset").addEventListener("change", renderAddonPresets);
+$("#save-addon-preset").addEventListener("click", async () => {
+  const name = $("#addon-preset-name").value.trim();
+  if (!name) { toast("Enter a name for the addon preset.", true); return; }
+  try {
+    state.wowPresets = await api("/api/wow/addon-presets", {
+      method: "POST",
+      body: JSON.stringify({ editionId: state.wowEditionId, profileId: state.wowProfileId, name })
+    });
+    $("#addon-preset-name").value = "";
+    renderAddonPresets();
+    $("#wow-addon-preset").value = name;
+    renderAddonPresets();
+    toast(`Saved addon preset: ${name}.`);
+  } catch (error) { toast(error.message, true); }
+});
+$("#apply-addon-preset").addEventListener("click", async () => {
+  const name = $("#wow-addon-preset").value;
+  if (!name || !window.confirm(`Apply “${name}” to the selected character? John's Twitch Handler will back up AddOns.txt first.`)) return;
+  try {
+    state.wow = await api("/api/wow/addon-presets/apply", {
+      method: "POST",
+      body: JSON.stringify({ editionId: state.wowEditionId, profileId: state.wowProfileId, name })
+    });
+    renderWowEdition();
+    toast(`Applied addon preset: ${name}.`);
+  } catch (error) { toast(error.message, true); }
+});
+$("#delete-addon-preset").addEventListener("click", async () => {
+  const name = $("#wow-addon-preset").value;
+  if (!name || !window.confirm(`Delete the saved preset “${name}”?`)) return;
+  try {
+    state.wowPresets = await api("/api/wow/addon-presets/delete", {
+      method: "POST",
+      body: JSON.stringify({ editionId: state.wowEditionId, name })
+    });
+    renderAddonPresets();
+    toast(`Deleted addon preset: ${name}.`);
+  } catch (error) { toast(error.message, true); }
+});
+$("#wow-addon-list").addEventListener("click", async event => {
+  const button = event.target.closest("[data-addon-toggle]");
+  if (!button) return;
+  try {
+    button.disabled = true;
+    state.wow = await api("/api/wow/addons/toggle", {
+      method: "POST",
+      body: JSON.stringify({
+        editionId: state.wowEditionId,
+        profileId: state.wowProfileId,
+        addonName: button.dataset.addonToggle,
+        enabled: button.dataset.enabled !== "true"
+      })
+    });
+    renderWowEdition();
+    toast(`${button.dataset.addonToggle} ${button.dataset.enabled === "true" ? "disabled" : "enabled"} for the selected character.`);
+  } catch (error) { button.disabled = false; toast(error.message, true); }
+});
+$("#refresh-wow").addEventListener("click", () => loadWowAddons(true));
+$("#install-wow-profiler").addEventListener("click", async () => {
+  try {
+    state.wow = await api("/api/wow/profiler/install", { method: "POST" });
+    renderWowEdition();
+    toast("John's Twitch Handler Profiler installed for detected WoW editions. Enable it in WoW's AddOns screen.");
+  } catch (error) { toast(error.message, true); }
+});
+$("#auto-mark-bosses").addEventListener("change", saveWowEventOptions);
+$("#auto-save-boss-replay").addEventListener("change", saveWowEventOptions);
+$("#auto-tangia-boss-focus").addEventListener("change", saveWowEventOptions);
+$("#test-wow-event").addEventListener("click", async () => {
+  try {
+    state.wowEvents = await api("/api/wow/events/test", { method: "POST" });
+    renderWowEvents();
+    await refreshReport(false);
+    toast(state.sessionActive ? "Test boss victory processed." : "Test event received. Start a session to create automatic markers.");
+  } catch (error) { toast(error.message, true); }
+});
+
+$("#demo-primary-action").addEventListener("click", advanceGuidedDemo);
+$("#demo-simulate-gpu").addEventListener("click", () => runDemoIncident("gpu"));
+$("#demo-simulate-network").addEventListener("click", () => runDemoIncident("network"));
+$("#demo-fix-it").addEventListener("click", fixDemoIncident);
+$("#demo-exit").addEventListener("click", () => resetGuidedDemo(false));
+
+document.addEventListener("keydown", event => {
+  if (!event.altKey || ["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
+  if (event.key.toLowerCase() === "m") { event.preventDefault(); addMarker(); }
+  if (event.key.toLowerCase() === "r") { event.preventDefault(); $("#save-replay-only").click(); }
+});
+
+// Recursive timeouts wait for each request to finish. setInterval could stack duplicate Spotify/OBS
+// calls during a slow response, which wastes resources precisely when the stream PC is under load.
+function startPolling(task, delayMs, panelId = null) {
+  const tick = async () => {
+    try {
+      const panel = panelId ? document.querySelector(`[data-panel-id="${CSS.escape(panelId)}"]`) : null;
+      // A collapsed card is deliberately out of use. Keep global readiness checks alive, but let
+      // optional cards sleep until the streamer expands them again.
+      if (!document.hidden && !panel?.classList.contains("collapsed")) await task();
+    } catch (error) {
+      console.debug("Background dashboard refresh failed.", error);
+    } finally {
+      window.setTimeout(tick, delayMs);
+    }
+  };
+  window.setTimeout(tick, delayMs);
+}
+
+async function boot() {
+  loadManualPreflightItems();
+  renderManualPreflightItems();
+  loadPreflightVisibility();
+  if (state.channelName) loadChat(state.channelName);
+  else renderCombinedChat();
+  $("#twitch-client-id").value = localStorage.getItem("streamsidekick.twitchClientId") || "";
+  $("#spotify-client-id").value = localStorage.getItem("streamsidekick.spotifyClientId") || "";
+  $("#youtube-live-url").value = state.youtubeVideoId ? `https://www.youtube.com/watch?v=${state.youtubeVideoId}` : "";
+  $("#raid-range").value = String([7, 14, 31].includes(state.raidDays) ? state.raidDays : 31);
+  await loadSetupConfiguration();
+  const startupTasks = [refreshPreflight(), refreshObs(), refreshAudio(), refreshReport(false), refreshPerformance(), loadProfileAnalysis(), refreshOptimizerStatus(), refreshAlerts(), refreshChatChime(), refreshSpotify(), refreshTangia(), refreshStreamElements(), refreshTikFinity(), refreshAds(), refreshChatCommands(), refreshAutomations(), refreshRaids(true), refreshViewerNotes()];
+  // WoW tools are temporarily out of the product. Keeping their work out of this list also prevents
+  // hidden cards from scanning game files or polling combat logs in the background.
+  if (state.setup.wowToolsEnabled === true) {
+    startupTasks.push(loadWowAddons(), loadAddonPresets(), refreshWowEvents());
+  }
+  await Promise.all(startupTasks);
+  // A first-time tester should land directly on the short setup checklist instead of hunting for
+  // the gear icon. Once dismissed, normal launches return straight to the dashboard.
+  if (!localStorage.getItem("streamsidekick.setupSeen")
+      && (!state.preflight?.obsConnected || !state.preflight?.twitchConfigured)) {
+    localStorage.setItem("streamsidekick.setupSeen", "true");
+    openSettings();
+  }
+  startPolling(refreshObs, 5000);
+  startPolling(refreshAudio, 1000, "audio");
+  startPolling(refreshPerformance, 3000, "performance");
+  startPolling(refreshAlerts, 4000, "alerts");
+  startPolling(refreshChatChime, 8000, "chat");
+  startPolling(refreshPreflight, 8000);
+  startPolling(refreshOptimizerStatus, 5000, "optimizer");
+  if (state.setup.wowToolsEnabled === true) startPolling(refreshWowEvents, 2000, "wow-events");
+  startPolling(refreshSpotify, 5000);
+  startPolling(refreshTangia, 5000);
+  // Plugin installation rarely changes, so this intentionally sleeps much longer than live data.
+  startPolling(refreshStreamElements, 60000, "streamelements");
+  startPolling(refreshTikFinity, 2500, "tikfinity");
+  startPolling(refreshAds, 4000, "ads");
+  startPolling(() => refreshReport(false), 15000, "report");
+  startPolling(refreshViewerNotes, 30000, "viewers");
+  startPolling(refreshAutomations, 15000, "automations");
+  // Countdown repaint is local only; no network or OBS work is performed every second.
+  window.setInterval(renderAds, 1000);
+}
+async function startDashboard() {
+  initializeTheme();
+  renderGuidedDemo();
+  await initializeMovablePanels();
+  await boot();
+}
+startDashboard();

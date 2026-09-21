@@ -1,0 +1,33 @@
+# .NET and Visual Studio build output
+**/bin/
+**/obj/
+.vs/
+.idea/
+.codex-build/
+artifacts/
+
+# Local runtime output and machine-specific state
+logs/
+data/
+*.log
+*.user
+*.suo
+*.pid
+
+# Never commit local overrides, environment files, or signing material
+appsettings.Local.json
+appsettings.*.local.json
+.env
+.env.*
+*.pfx
+*.p12
+*.snk
+*.key
+*.pem
+
+# Generated packages and editor/OS clutter
+*.zip
+*.tar.gz
+.DS_Store
+Thumbs.db
+Desktop.ini

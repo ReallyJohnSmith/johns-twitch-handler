@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+  <!-- The app is a self-hosted local ASP.NET dashboard; nullable checks catch integration-state mistakes. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <RootNamespace>StreamSidekick</RootNamespace>
+    <!-- Keep the code namespace stable, but give the built Windows program its user-facing name. -->
+    <!-- Assembly identifiers cannot safely contain apostrophes. Product and window names retain the exact branding. -->
+    <AssemblyName>JohnsTwitchHandler</AssemblyName>
+    <Product>John's Twitch Handler</Product>
+    <Title>John's Twitch Handler</Title>
+  </PropertyGroup>
+  <!-- Ship the companion addon next to the executable so it can be installed without a download. -->
+  <ItemGroup>
+    <Content Include="WowAddon\**\*" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

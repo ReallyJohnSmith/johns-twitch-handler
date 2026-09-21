@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Just Chatting stream labels</title>
+  <style>
+    /* This page is a transparent 1920x1080 OBS Browser Source. Its four cells line up with
+       the labeled footer frames in the black-and-white Just Chatting overlay. */
+    html, body {
+      width: 1920px;
+      height: 1080px;
+      margin: 0;
+      overflow: hidden;
+      background: transparent;
+    }
+
+    .value {
+      position: absolute;
+      top: 958px;
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-sizing: border-box;
+      padding: 8px 18px 4px;
+      color: #fff;
+      font: 700 27px/1 "Arial Narrow", "Roboto Condensed", Arial, sans-serif;
+      letter-spacing: .8px;
+      text-align: center;
+      text-transform: uppercase;
+      text-shadow: 0 2px 4px #000, 0 0 12px #000;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+      overflow: hidden;
+    }
+
+    #latest-follower { left: 88px; width: 426px; }
+    #latest-subscriber { left: 526px; width: 428px; }
+    #latest-support { left: 967px; width: 416px; }
+    #top-support { left: 1410px; width: 425px; }
+
+    .waiting {
+      color: rgba(255, 255, 255, .62);
+      font-size: 22px;
+      letter-spacing: 1.5px;
+    }
+  </style>
+</head>
+<body>
+  <div id="latest-follower" class="value waiting">Waiting...</div>
+  <div id="latest-subscriber" class="value waiting">Waiting...</div>
+  <div id="latest-support" class="value waiting">Waiting...</div>
+  <div id="top-support" class="value waiting">Waiting...</div>
+
+  <script>
+    const byId = id => document.getElementById(id);
+    let lastSignature = "";
+
+    // EventSub keeps this feed small and newest-first, so the overlay can update cheaply without
+    // maintaining its own socket or adding meaningful load during a stream.
+    function show(id, text) {
+      const element = byId(id);
+      element.textContent = text || "Waiting...";
+      element.classList.toggle("waiting", !text);
+    }
+
+    function bitsFrom(alert) {
+      const match = String(alert?.detail || "").match(/([\d,]+)\s+Bits/i);
+      return match ? Number(match[1].replaceAll(",", "")) : 0;
+    }
+
+    async function refresh() {
+      try {
+        const response = await fetch("/api/alerts", { cache: "no-store" });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const { alerts = [] } = await response.json();
+
+        const follower = alerts.find(alert => alert.type === "follow");
+        const subscriber = alerts.find(alert => ["subscription", "gift", "resub"].includes(alert.type));
+        const cheers = alerts.filter(alert => alert.type === "cheer");
+        const latestCheer = cheers[0];
+        const topCheer = cheers.reduce((best, alert) => bitsFrom(alert) > bitsFrom(best) ? alert : best, null);
+
+        const labels = {
+          follower: follower?.userName || "",
+          subscriber: subscriber?.userName || "",
+          latestSupport: latestCheer ? `${latestCheer.userName || "Anonymous"} · ${bitsFrom(latestCheer)} Bits` : "",
+          topSupport: topCheer ? `${topCheer.userName || "Anonymous"} · ${bitsFrom(topCheer)} Bits` : ""
+        };
+        const signature = JSON.stringify(labels);
+        if (signature === lastSignature) return;
+        lastSignature = signature;
+
+        show("latest-follower", labels.follower);
+        show("latest-subscriber", labels.subscriber);
+        show("latest-support", labels.latestSupport);
+        show("top-support", labels.topSupport);
+      } catch {
+        // Keep the neutral placeholder visible while the Handler or Twitch connection recovers.
+        ["latest-follower", "latest-subscriber", "latest-support", "top-support"].forEach(id => show(id, ""));
+      } finally {
+        // Waiting for the previous request avoids overlapping work when the stream PC or local app
+        // is temporarily busy. Five seconds is plenty for labels that change only on viewer events.
+        window.setTimeout(refresh, 5000);
+      }
+    }
+
+    refresh();
+  </script>
+</body>
+</html>

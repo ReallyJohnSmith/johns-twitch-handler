@@ -1,0 +1,811 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0b0d13">
+  <title>John's Twitch Handler</title>
+  <link rel="stylesheet" href="styles.css?v=004">
+</head>
+<body>
+  <!-- A real fixed element is used instead of a body pseudo-element so browser compositors cannot clip it. -->
+  <div id="status-border" class="status-border warning" aria-hidden="true"></div>
+  <div class="shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark">J</div>
+        <div class="brand-copy">
+          <div class="brand-title-row">
+            <h1>John's Twitch Handler</h1>
+            <span id="release-channel-pill" class="release-channel-pill" title="This identifies the installed release">Version loading…</span>
+          </div>
+          <p>OBS control · clip notes · session reports</p>
+        </div>
+      </div>
+      <div class="status-strip">
+        <span class="privacy-pill" title="John cannot see your settings, credentials, reports, or activity.">🔒 Data stays on this PC</span>
+        <span class="layout-hint">Drag to move · corner to resize · −/+ to collapse</span>
+        <label class="theme-picker" title="Choose a dashboard color theme">
+          <span>Theme</span>
+          <select id="theme-select" aria-label="Dashboard color theme">
+            <option value="midnight">Midnight</option>
+            <option value="ocean">Ocean</option>
+            <option value="forest">Forest</option>
+            <option value="ember">Ember</option>
+            <option value="slate">Slate</option>
+          </select>
+        </label>
+        <span id="obs-pill" class="pill offline"><i></i> OBS offline</span>
+        <span id="session-pill" class="pill neutral"><i></i> No session</span>
+        <button class="icon-button" id="reset-layout" aria-label="Reset dashboard layout" title="Reset dashboard layout">↺</button>
+        <button class="icon-button" id="settings-button" aria-label="Open settings">⚙</button>
+      </div>
+    </header>
+
+    <main>
+      <!-- Session tracking is separate from OBS going live; it defines the reporting time window. -->
+      <section class="hero-card">
+        <div class="session-copy">
+          <span class="eyebrow">CURRENT SESSION</span>
+          <h2 id="session-title">Ready when you are</h2>
+          <p id="session-subtitle">Connect OBS, run the preflight, and start tracking the show.</p>
+          <div class="border-legend" aria-label="Dashboard border color meanings">
+            <span><i class="live" aria-hidden="true"></i><strong>Red:</strong> live</span>
+            <span><i class="warning" aria-hidden="true"></i><strong>Yellow:</strong> preflight incomplete</span>
+            <span><i class="ready" aria-hidden="true"></i><strong>Green:</strong> ready to go live</span>
+            <span><i class="skipped" aria-hidden="true"></i><strong>Blue:</strong> optional item skipped</span>
+          </div>
+        </div>
+        <div class="session-actions">
+          <input id="stream-title" type="text" maxlength="100" placeholder="Tonight's stream title">
+          <button id="session-toggle" class="primary">Start session</button>
+        </div>
+        <!-- Preflight belongs to session readiness and stays fixed above the movable dashboard. -->
+        <section class="preflight-strip">
+          <div class="preflight-strip-heading">
+            <div>
+              <span class="eyebrow">BEFORE YOU GO LIVE</span>
+              <h3>Preflight</h3>
+              <small class="preflight-color-key">Blue means optional and intentionally skipped</small>
+            </div>
+            <div class="preflight-heading-actions">
+              <button class="text-button" id="manage-preflight-visibility" type="button">Open preflight list</button>
+              <button class="text-button" id="refresh-button" type="button">Refresh</button>
+            </div>
+          </div>
+          <div class="check-list" id="preflight-check-list">
+            <div class="check-row" id="check-obs">
+              <span class="check-icon">○</span>
+              <div><strong>OBS WebSocket</strong><small>Connects scenes and replay controls</small></div>
+              <button class="small-button" data-open-settings>Connect</button>
+            </div>
+            <div class="check-row" id="check-microphone">
+              <span class="check-icon">○</span>
+              <div><strong>Microphone</strong><small>Checking the OBS microphone mute state…</small></div>
+              <button class="small-button" id="unmute-microphone">Check</button>
+            </div>
+            <div class="check-row" id="check-nvidia">
+              <span class="check-icon">○</span>
+              <div><strong>NVIDIA Broadcast</strong><small id="nvidia-detail">Checking app status…</small></div>
+              <button class="small-button" id="launch-nvidia">Open</button>
+            </div>
+            <div class="check-row optional" id="check-twitch">
+              <span class="check-icon">○</span>
+              <div><strong>Twitch integrations</strong><small>Checking alerts, rewards, and chat feedback…</small></div>
+              <button class="small-button" data-open-settings>Set up</button>
+            </div>
+            <div class="check-row optional" id="check-spotify">
+              <span class="check-icon">○</span>
+              <div><strong>Spotify song requests</strong><small>Checking account and playback device…</small></div>
+              <button class="small-button" data-open-settings>Connect</button>
+            </div>
+            <div class="check-row optional" id="check-music-overlay">
+              <span class="check-icon">○</span>
+              <div><strong>Viewer song overlay</strong><small>Checking OBS Browser Sources…</small></div>
+              <button class="small-button" id="copy-music-overlay-url">Copy URL</button>
+            </div>
+            <div class="check-row optional" id="check-tangia">
+              <span class="check-icon">○</span>
+              <div><strong>Tangia overlay</strong><small>Checking OBS Browser Sources…</small></div>
+              <button class="small-button" data-scroll-panel="tangia">Open</button>
+            </div>
+            <div class="check-row optional" id="check-streamelements">
+              <span class="check-icon">○</span>
+              <div><strong>StreamElements</strong><small>Checking SE.Live multistream support…</small></div>
+              <button class="small-button" data-scroll-panel="streamelements">Open</button>
+            </div>
+            <div class="check-row optional" id="check-tikfinity">
+              <span class="check-icon">○</span>
+              <div><strong>TikFinity chat</strong><small>Optional TikTok chat bridge…</small></div>
+              <button class="small-button" data-scroll-panel="tikfinity">Open</button>
+            </div>
+            <div id="manual-preflight-items" class="manual-preflight-items"></div>
+          </div>
+          <div class="manual-preflight-editor">
+            <input id="manual-preflight-name" maxlength="60" placeholder="Add a reminder, such as Get Coffee" aria-label="New manual preflight item">
+            <button id="add-manual-preflight" class="secondary" type="button">Add reminder</button>
+          </div>
+        </section>
+      </section>
+
+      <!-- Every direct child is a movable card. data-panel-id is its durable saved-layout key. -->
+      <div class="dashboard-grid">
+
+        <!-- Demo mode tells the complete product story without changing OBS, accounts, or reports. -->
+        <section class="panel stream-health-panel" data-panel-id="stream-health" data-panel-span="12">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">BEFORE · DURING · AFTER</span>
+              <h3>Stream Health guided demo</h3>
+            </div>
+            <span id="demo-mode-state" class="tiny-status">Demo off</span>
+          </div>
+          <div class="demo-stage-track" aria-label="Demonstration stages">
+            <span id="demo-stage-before" class="active"><i>1</i> Before</span>
+            <span id="demo-stage-during"><i>2</i> During</span>
+            <span id="demo-stage-after"><i>3</i> After</span>
+          </div>
+          <div id="demo-health-hero" class="demo-health-hero healthy" aria-live="polite">
+            <span id="demo-health-icon" class="demo-health-icon">✓</span>
+            <div>
+              <small id="demo-health-kicker">BEFORE THE STREAM</small>
+              <strong id="demo-health-title">See the complete Stream Health story</strong>
+              <p id="demo-health-detail">Run a safe simulation using sample data. Nothing connects to or changes OBS.</p>
+            </div>
+          </div>
+          <div id="demo-metrics" class="demo-metrics" hidden>
+            <div><span>GPU</span><strong id="demo-gpu-value">68%</strong></div>
+            <div><span>OBS RENDER</span><strong id="demo-render-value">Healthy</strong></div>
+            <div><span>NETWORK</span><strong id="demo-network-value">32 ms</strong></div>
+            <div><span>HEADROOM</span><strong id="demo-headroom-value">32%</strong></div>
+          </div>
+          <div id="demo-explanation" class="demo-explanation">
+            <strong>What this demonstrates</strong>
+            <p>Simple readiness, interpreted live health, safe corrective actions, and a useful session summary.</p>
+          </div>
+          <div id="demo-fix-results" class="demo-fix-results" hidden></div>
+          <div id="demo-summary" class="demo-summary" hidden></div>
+          <div class="demo-controls">
+            <button id="demo-primary-action" class="primary">Start guided demo</button>
+            <button id="demo-simulate-gpu" class="secondary" hidden>Simulate GPU pressure</button>
+            <button id="demo-simulate-network" class="secondary" hidden>Simulate network problem</button>
+            <button id="demo-fix-it" class="primary" hidden>Fix it</button>
+            <button id="demo-exit" class="text-button" hidden>Exit demo</button>
+          </div>
+          <p class="helper">Demo Mode is deterministic and uses sample values. It never changes real integrations, OBS settings, or saved reports.</p>
+        </section>
+
+        <!-- A marker can save an OBS replay, request a Twitch clip, or simply preserve a timestamp. -->
+        <section class="panel clip-panel" data-panel-id="clips">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">SMART CLIP ASSISTANT</span>
+              <h3>Mark the moment</h3>
+            </div>
+            <span class="key-hint">Alt + M</span>
+          </div>
+          <input id="marker-title" class="marker-input" type="text" maxlength="140" placeholder="What just happened?">
+          <div class="marker-options">
+            <label><input id="save-replay" type="checkbox" checked> Save OBS replay</label>
+            <label><input id="create-twitch-clip" type="checkbox"> Create Twitch clip</label>
+          </div>
+          <div class="quick-markers">
+            <button data-marker="Great play" data-kind="clip">⚡ Great play</button>
+            <button data-marker="Funny moment" data-kind="funny">☺ Funny</button>
+            <button data-marker="Chat moment" data-kind="chat">☷ Chat</button>
+          </div>
+          <button id="add-marker" class="primary wide">Save highlight marker</button>
+          <button id="create-social-clip" class="secondary wide">Create clip for TikTok / YouTube</button>
+          <p class="helper">Markers are stored locally. Twitch clip edit links can go straight into your StreamLadder workflow.</p>
+        </section>
+
+        <!-- OBS WebSocket drives these scene and replay controls directly. -->
+        <section class="panel scenes-panel" data-panel-id="scenes">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">OBS CONTROL</span>
+              <h3>Scenes</h3>
+            </div>
+            <span id="live-state" class="tiny-status">Not connected</span>
+          </div>
+          <div id="scene-grid" class="scene-grid empty-state">Connect OBS to load scenes.</div>
+          <button id="save-replay-only" class="secondary wide">Save replay buffer <span>Alt + R</span></button>
+        </section>
+
+        <!-- This mixer changes OBS inputs only; it never changes the Windows master volume. -->
+        <section class="panel mixer-panel" data-panel-id="audio">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">OBS AUDIO</span>
+              <h3>Volume control</h3>
+            </div>
+            <span id="audio-state" class="tiny-status">Not connected</span>
+          </div>
+          <div id="audio-mixer" class="audio-mixer empty-state">Connect OBS to control its audio sources.</div>
+          <p class="helper">Changes apply directly to OBS. Live meters help you spot active sources before going live.</p>
+        </section>
+
+        <!-- Both platforms remain in their official embeds, so the Handler never handles chat passwords. -->
+        <section class="panel chat-panel" data-panel-id="chat">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">MULTIPLATFORM CHAT</span>
+              <h3 id="chat-heading">Channel chat</h3>
+            </div>
+            <button id="chat-popout" class="text-button">Game overlay ↗</button>
+          </div>
+          <div id="chat-frame-wrap" class="chat-frame-wrap empty-state">
+            Add your Twitch channel name in Settings to display chat.
+          </div>
+          <div class="chat-chime-controls">
+            <label><input id="chat-chime-enabled" type="checkbox" checked> Private chat chime</label>
+            <label class="chat-chime-volume">Quietness
+              <input id="chat-chime-volume" type="range" min="-45" max="-12" step="1" value="-30">
+              <output id="chat-chime-volume-value">−30 dB</output>
+            </label>
+            <button id="test-chat-chime" class="text-button">Test</button>
+          </div>
+          <p id="chat-chime-status" class="helper">Checking viewer-safe OBS audio routing…</p>
+          <p class="helper">Enabled chats are displayed together. TikFinity adds read-only TikTok chat; bot replies and scheduled messages currently post to Twitch only.</p>
+        </section>
+
+        <!-- EventSub alerts include local warnings so failed song requests remain visible. -->
+        <section class="panel alerts-panel" data-panel-id="alerts">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">LIVE ALERTS</span>
+              <h3>Activity feed</h3>
+            </div>
+            <span id="alerts-state" class="tiny-status">Not connected</span>
+          </div>
+          <div id="alerts-list" class="alerts-list empty-state">Connect Twitch in Settings to receive follows, subscriptions, cheers, raids, rewards, and stream status.</div>
+          <div id="alerts-warnings" class="alerts-warnings"></div>
+          <div class="alert-actions">
+            <button class="secondary" data-open-settings>Twitch settings</button>
+            <button class="text-button" id="test-alert">Test alert</button>
+          </div>
+        </section>
+
+        <!-- Commands are stored locally and answered through the already connected broadcaster account. -->
+        <section class="panel commands-panel" data-panel-id="commands">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">CHAT AUTOMATION</span>
+              <h3>Command manager</h3>
+            </div>
+            <span id="commands-state" class="tiny-status">Loading…</span>
+          </div>
+          <div class="command-editor">
+            <label>Command<input id="command-name" maxlength="32" placeholder="!discord"></label>
+            <label>Cooldown<input id="command-cooldown" type="number" min="5" max="300" value="15"></label>
+            <label class="command-response">Response<textarea id="command-response" maxlength="450" rows="3" placeholder="Join us at https://..."></textarea></label>
+            <label class="inline-toggle"><input id="command-enabled" type="checkbox" checked> Enabled</label>
+            <button id="save-command" class="primary">Save command</button>
+            <button id="cancel-command-edit" class="text-button" hidden>Cancel edit</button>
+          </div>
+          <div id="command-list" class="managed-list empty-state">No custom commands yet.</div>
+          <p class="helper">Use <code>{user}</code> in a response to include the viewer’s name. Built-in <code>!song</code> and <code>!playing</code> commands provide the current Spotify link.</p>
+        </section>
+
+        <!-- Safe automations expose only reviewed actions, never arbitrary scripts or shell commands. -->
+        <section class="panel automations-panel" data-panel-id="automations">
+          <div class="panel-heading">
+            <div><span class="eyebrow">SAFE WORKFLOWS</span><h3>Action & schedule manager</h3></div>
+            <span id="automations-state" class="tiny-status">Loading…</span>
+          </div>
+          <div class="automation-editor">
+            <input id="automation-id" type="hidden">
+            <label>Name<input id="automation-name" maxlength="80" placeholder="Discord reminder"></label>
+            <label>Trigger<select id="automation-trigger"><option value="manual">Manual</option><option value="interval">Repeat during session</option></select></label>
+            <label id="automation-interval-label" hidden>Every minutes<input id="automation-interval" type="number" min="5" max="240" value="30"></label>
+            <label>Action<select id="automation-action"><option value="chat-message">Send Twitch chat message</option><option value="switch-scene">Switch OBS scene</option><option value="marker">Add stream marker</option></select></label>
+            <label class="automation-value">Message or value<textarea id="automation-value" maxlength="450" rows="3" placeholder="Join the Discord at https://..."></textarea></label>
+            <label class="inline-toggle"><input id="automation-enabled" type="checkbox" checked> Enabled</label>
+            <button id="save-automation" class="primary">Save automation</button>
+            <button id="cancel-automation-edit" class="text-button" hidden>Cancel edit</button>
+          </div>
+          <div id="automation-list" class="managed-list empty-state">No automations yet.</div>
+          <p class="helper">Repeating actions run only while a Handler session is active. Allowed actions are Twitch messages, OBS scene changes, and local stream markers. Scripts and external programs cannot run.</p>
+        </section>
+
+        <!-- Raid history is local; only the small shortlist is checked against Twitch on request. -->
+        <section class="panel raids-panel" data-panel-id="raids">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">COMMUNITY HANDOFF</span>
+              <h3>Raid manager</h3>
+            </div>
+            <div class="raid-heading-actions"><select id="raid-range" class="compact-select" aria-label="Raid history range"><option value="7">1 week</option><option value="14">2 weeks</option><option value="31" selected>1 month</option></select><button id="refresh-raids" class="text-button">Check live</button></div>
+          </div>
+          <div class="compact-add-row">
+            <input id="raid-channel" maxlength="50" placeholder="Twitch channel name">
+            <button id="add-raid-channel" class="secondary">Add channel</button>
+          </div>
+          <div id="raid-warning" class="inline-warning" hidden></div>
+          <div id="raid-list" class="managed-list empty-state">Add channels you may want to raid.</div>
+          <div class="raid-timeline-heading"><strong>Raid timeline</strong><span id="raid-timeline-summary">Last month</span></div>
+          <div id="raid-timeline" class="raid-timeline empty-state">No raids recorded in this period.</div>
+          <p class="helper">Incoming raids are recorded automatically. “Mark raided” saves an outgoing event without sending a raid command. History stays on this computer.</p>
+        </section>
+
+        <!-- Private viewer notes are local-only and never appear in chat or on the broadcast. -->
+        <section class="panel viewers-panel" data-panel-id="viewers">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">COMMUNITY MEMORY</span>
+              <h3>Viewer notes</h3>
+            </div>
+            <span id="viewers-state" class="tiny-status">Local only</span>
+          </div>
+          <div class="viewer-note-editor">
+            <input id="viewer-name" maxlength="50" placeholder="Viewer name">
+            <textarea id="viewer-note" maxlength="500" rows="3" placeholder="Joined our raid group, suggested an addon, prefers healer builds…"></textarea>
+            <button id="save-viewer-note" class="primary">Save note</button>
+            <button id="cancel-viewer-edit" class="text-button" hidden>Cancel edit</button>
+          </div>
+          <div id="viewer-note-list" class="managed-list empty-state">Regular viewers will appear here as they chat or interact.</div>
+          <p class="helper">Tracks first seen, last seen, and notable Twitch activity. Notes remain on this computer.</p>
+        </section>
+
+        <!-- SE.Live owns credentials and output encoding; this card provides readiness and planning. -->
+        <section class="panel streamelements-panel" data-panel-id="streamelements">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">STREAM DESTINATIONS</span>
+              <h3>StreamElements & multistream</h3>
+            </div>
+            <span id="streamelements-state" class="tiny-status">Checking…</span>
+          </div>
+          <div id="streamelements-summary" class="integration-summary">Checking for the SE.Live OBS plugin.</div>
+          <label class="streamelements-confirmation"><input type="checkbox" id="streamelements-confirmed"> <span><strong>Outputs confirmed in OBS</strong><small>I checked that every selected SE.Live destination is connected and ready.</small></span></label>
+          <div class="multistream-destinations">
+            <label><input type="checkbox" data-multistream-destination="twitch" checked> <span><strong>Twitch</strong><small>Primary horizontal stream</small></span></label>
+            <label><input type="checkbox" data-multistream-destination="youtube"> <span><strong>YouTube</strong><small>Horizontal live stream</small></span></label>
+            <label><input type="checkbox" data-multistream-destination="tiktok"> <span><strong>TikTok</strong><small>Vertical canvas recommended</small></span></label>
+          </div>
+          <label class="multistream-bitrate">Estimated bitrate per output
+            <select id="multistream-bitrate" class="compact-select">
+              <option value="2500">2,500 Kbps</option>
+              <option value="3500" selected>3,500 Kbps</option>
+              <option value="4500">4,500 Kbps</option>
+              <option value="6000">6,000 Kbps</option>
+            </select>
+          </label>
+          <div class="multistream-load">
+            <div><span>ENABLED OUTPUTS</span><strong id="multistream-output-count">1</strong></div>
+            <div><span>COMBINED BITRATE</span><strong id="multistream-combined-bitrate">3.5 Mbps</strong></div>
+            <div><span>UPLOAD TARGET</span><strong id="multistream-upload-target">5.3 to 7.0 Mbps</strong></div>
+          </div>
+          <div class="streamelements-actions">
+            <a id="open-streamelements-dashboard" class="secondary button-link" href="https://streamelements.com/dashboard" target="_blank" rel="noreferrer">Open StreamElements</a>
+            <a id="open-selive-guide" class="primary button-link" href="https://docs.streamelements.com/selive/guides/multistreaming" target="_blank" rel="noreferrer">SE.Live setup guide ↗</a>
+          </div>
+          <p class="helper">Connect YouTube and TikTok inside OBS under StreamElements → SE.Live Docks → StreamElements Multi-Streaming. The Handler never stores stream keys. TikTok requires LIVE access.</p>
+        </section>
+
+        <!-- TikFinity handles TikTok sign-in; this card reads only its local desktop event feed. -->
+        <section class="panel tikfinity-panel" data-panel-id="tikfinity">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">OPTIONAL TIKTOK CHAT</span>
+              <h3>TikFinity chat bridge</h3>
+            </div>
+            <span id="tikfinity-state" class="tiny-status">Turned off</span>
+          </div>
+          <div id="tikfinity-summary" class="integration-summary">Choose Yes in Settings only if you want TikTok chat in the Handler.</div>
+          <div class="tikfinity-preview">
+            <strong>Recent TikTok messages</strong>
+            <div id="tikfinity-card-list" class="tikfinity-chat-list empty-state">No TikTok messages received.</div>
+          </div>
+          <a class="primary button-link" href="https://tikfinity.zerody.one/" target="_blank" rel="noreferrer">Open TikFinity setup ↗</a>
+          <p class="helper">TikFinity is a separate third-party desktop app and must stay open while you stream. The Handler reads its local chat feed only and stores no TikTok login. Turning this option off closes the local connection and stops polling.</p>
+        </section>
+
+        <!-- Tangia stays isolated in one OBS Browser Source, keeping controls fast and predictable. -->
+        <section class="panel tangia-panel" data-panel-id="tangia">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">VIEWER INTERACTIONS</span>
+              <h3>Tangia controls</h3>
+            </div>
+            <span id="tangia-state" class="tiny-status">Checking…</span>
+          </div>
+          <div id="tangia-summary" class="integration-summary">Connect OBS to inspect the Tangia Browser Source.</div>
+          <div class="tangia-controls">
+            <button id="tangia-visibility" class="secondary" disabled>Show source</button>
+            <button id="tangia-mute" class="secondary" disabled>Mute</button>
+            <button id="tangia-reload" class="secondary" disabled>Reload</button>
+            <button id="tangia-boss-focus" class="primary" disabled>Boss Focus</button>
+          </div>
+          <label class="tangia-volume">Tangia volume
+            <input id="tangia-volume" type="range" min="-60" max="6" step="0.5" value="0" disabled>
+            <output id="tangia-volume-value">0.0 dB</output>
+          </label>
+          <div class="tangia-log-row">
+            <input id="tangia-interaction-note" maxlength="120" placeholder="Optional interaction note">
+            <button id="log-tangia-interaction" class="secondary">Log interaction</button>
+          </div>
+          <p class="helper">Name the OBS Browser Source “Tangia” or use a tangia.co overlay URL. Interaction logging is manual until Tangia offers a public event API.</p>
+        </section>
+
+        <!-- Twitch EventSub supplies real ad starts; the manual timer remains usable without ad scopes. -->
+        <section class="panel ads-panel" data-panel-id="ads">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">STREAM BREAK</span>
+              <h3>Ad break timer</h3>
+            </div>
+            <span id="ads-state" class="tiny-status">Idle</span>
+          </div>
+          <div id="ad-countdown" class="ad-countdown"><strong>00:00</strong><span>No ad break is running.</span></div>
+          <div class="ad-controls">
+            <select id="ad-duration" class="compact-select" aria-label="Ad duration">
+              <option value="30">30 seconds</option>
+              <option value="60" selected>60 seconds</option>
+              <option value="90">90 seconds</option>
+              <option value="120">120 seconds</option>
+              <option value="150">150 seconds</option>
+              <option value="180">180 seconds</option>
+            </select>
+            <button id="start-twitch-ad" class="primary">Run Twitch ad</button>
+            <button id="start-ad-timer" class="secondary">Timer only</button>
+          </div>
+          <div id="ad-message" class="performance-warning">Start messages and completion messages are posted by John’s Twitch Handler in chat.</div>
+          <p class="helper">Reconnect Twitch once to approve <code>channel:read:ads</code> and <code>channel:edit:commercial</code>. Timer only does not start an ad, but still announces and records the break.</p>
+        </section>
+
+        <!-- Spotify audio remains in the Spotify app; this card controls metadata and its queue. -->
+        <section class="panel spotify-panel" data-panel-id="spotify">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">VIEWER MUSIC</span>
+              <h3>Spotify requests</h3>
+            </div>
+            <span id="spotify-state" class="tiny-status">Not connected</span>
+          </div>
+          <div class="spotify-now-playing">
+            <span id="spotify-play-state" class="spotify-mark">♫</span>
+            <div><strong id="spotify-track-title">Connect Spotify to begin</strong><small id="spotify-track-detail">Requests play through your active Spotify device.</small></div>
+            <div class="spotify-playback-actions"><span id="spotify-device">Not available</span><button id="skip-spotify" class="text-button" disabled>Skip →</button></div>
+          </div>
+          <div class="spotify-search-row">
+            <input id="spotify-search" maxlength="200" placeholder="Search song or paste a Spotify track name">
+            <button id="search-spotify" class="secondary">Search</button>
+          </div>
+          <div id="spotify-search-results" class="spotify-search-results"></div>
+          <div class="spotify-request-settings">
+            <label>Channel Point reward title<input id="spotify-reward-title" maxlength="80" value="Song Request"></label>
+            <div class="spotify-toggles">
+              <label><input id="spotify-auto-queue" type="checkbox" checked> Auto-queue matches</label>
+              <label><input id="spotify-allow-explicit" type="checkbox" checked> Allow explicit tracks</label>
+              <button id="save-spotify-options" class="text-button">Save</button>
+            </div>
+          </div>
+          <div class="spotify-queue-heading"><strong>Up next</strong><span id="spotify-queue-count">Spotify queue</span></div>
+          <div id="spotify-up-next" class="spotify-up-next empty-state">The upcoming queue will appear here.</div>
+          <div class="spotify-queue-heading"><strong>Request activity</strong><span>Recent viewer matches</span></div>
+          <div id="spotify-request-list" class="spotify-request-list empty-state">No song requests yet.</div>
+          <div class="spotify-actions">
+            <button class="secondary" data-open-settings>Spotify settings</button>
+            <button id="test-spotify-request" class="text-button">Test search as viewer</button>
+          </div>
+          <div class="spotify-overlay-link">
+            <div><strong>Viewer queue overlay</strong><small>Shows the current song and upcoming queue without extra request pop-ups.</small></div>
+            <a class="secondary" href="/music-overlay.html" target="_blank" rel="noreferrer">Open overlay ↗</a>
+          </div>
+          <p class="helper">Browser Source URL: <code>http://127.0.0.1:5274/music-overlay.html</code>. The queue overlay remains available, but requests do not create separate broadcast notifications or alter your OBS/VOD audio routing.</p>
+        </section>
+
+        <!-- OS telemetry and OBS dropped-frame data are combined into actionable headroom advice. -->
+        <section class="panel performance-panel" data-panel-id="performance">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">SYSTEM MONITOR</span>
+              <h3>Performance headroom</h3>
+            </div>
+            <span id="performance-state" class="tiny-status">Sampling…</span>
+          </div>
+          <div class="gauges">
+            <div class="gauge" id="cpu-gauge">
+              <div class="gauge-top"><span>CPU</span><strong id="cpu-value">0%</strong></div>
+              <div class="gauge-track"><i id="cpu-bar"></i></div>
+            </div>
+            <div class="gauge" id="gpu-gauge">
+              <div class="gauge-top"><span>GPU</span><strong id="gpu-value">0%</strong></div>
+              <div class="gauge-track"><i id="gpu-bar"></i></div>
+            </div>
+            <div class="gauge" id="vram-gauge">
+              <div class="gauge-top"><span>VRAM</span><strong id="vram-value">0%</strong></div>
+              <div class="gauge-track"><i id="vram-bar"></i></div>
+            </div>
+            <div class="gauge" id="ram-gauge">
+              <div class="gauge-top"><span>RAM</span><strong id="ram-value">0%</strong></div>
+              <div class="gauge-track"><i id="ram-bar"></i></div>
+            </div>
+          </div>
+          <div class="temperature-row"><span id="gpu-name">NVIDIA GPU</span><strong id="gpu-temp">--°C</strong></div>
+          <svg id="performance-chart" class="performance-chart" viewBox="0 0 600 90" preserveAspectRatio="none" aria-label="Recent CPU and GPU load graph">
+            <polyline id="cpu-line" class="cpu-line" points=""></polyline>
+            <polyline id="gpu-line" class="gpu-line" points=""></polyline>
+          </svg>
+          <div class="chart-legend"><span><i class="cpu-dot"></i> CPU</span><span><i class="gpu-dot"></i> GPU</span><small>last 6 minutes</small></div>
+          <div id="obs-health" class="obs-health">Connect OBS to include render and encoder health.</div>
+          <div class="headroom-signals">
+            <div><span>GAME HEADROOM</span><strong id="headroom-value">Pending</strong></div>
+            <div><span>OBS RENDER</span><strong id="render-health">Pending</strong></div>
+            <div><span>INTERNET</span><strong id="network-health">Pending</strong></div>
+          </div>
+          <div id="performance-warning" class="performance-warning">Waiting for a few samples.</div>
+          <div class="internet-heading">
+            <strong>Connection timeline</strong>
+            <span id="internet-current">Waiting for the first check…</span>
+          </div>
+          <div id="internet-events" class="internet-events empty-state">No connection hiccups recorded.</div>
+          <div class="resource-drains-heading">
+            <strong>Top resource drains</strong>
+            <span>Live CPU + working RAM</span>
+          </div>
+          <div id="resource-drains" class="resource-drains empty-state">Collecting process samples…</div>
+          <p class="helper">Process RAM is working memory and will not equal total RAM usage. Windows also uses memory for file cache, drivers, compression, and shared graphics data.</p>
+        </section>
+
+        <!-- Temporarily disabled, not removed. Set Features:WowTools to true when we bring the WoW addon tools back. -->
+        <section class="panel wow-panel" data-panel-id="wow-addons" hidden>
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">WORLD OF WARCRAFT</span>
+              <h3>Addon health</h3>
+            </div>
+            <select id="wow-edition" class="compact-select" aria-label="World of Warcraft edition"></select>
+          </div>
+          <div class="wow-summary">
+            <div><strong id="wow-addon-count">Pending</strong><span>addon folders</span></div>
+            <div><strong id="wow-addon-size">Pending</strong><span>installed size</span></div>
+            <div><strong id="wow-profile-age">No data</strong><span>profiler snapshot</span></div>
+          </div>
+          <label class="profile-picker">Character addon profile
+            <select id="wow-character-profile" class="compact-select"><option value="">No character profiles found</option></select>
+          </label>
+          <div class="addon-presets">
+            <div class="preset-apply-row">
+              <select id="wow-addon-preset" class="compact-select" aria-label="Saved addon preset"><option value="">No saved presets</option></select>
+              <button id="apply-addon-preset" class="secondary" disabled>Apply</button>
+              <button id="delete-addon-preset" class="text-button" disabled>Delete</button>
+            </div>
+            <div class="preset-save-row">
+              <input id="addon-preset-name" maxlength="40" placeholder="Preset name, e.g. Raid Stream">
+              <button id="save-addon-preset" class="secondary">Save current</button>
+            </div>
+          </div>
+          <div id="wow-insights" class="wow-insights"></div>
+          <div class="wow-toolbar">
+            <button id="install-wow-profiler" class="primary">Install profiler addon</button>
+            <button id="refresh-wow" class="text-button">Rescan</button>
+          </div>
+          <div class="addon-table-head"><span>Addon</span><span id="addon-metric-heading">Disk / saved data</span></div>
+          <div id="wow-addon-list" class="wow-addon-list empty-state">Scanning WoW installations…</div>
+          <p id="wow-profiler-help" class="helper">Install the companion, play normally, then type <code>/ssp</code> followed by <code>/reload</code>. John's Twitch Handler will rank addons by recent and peak execution time.</p>
+        </section>
+
+        <!-- Temporarily disabled with the addon tools. The encounter implementation is preserved for later. -->
+        <section class="panel wow-events-panel" data-panel-id="wow-events" hidden>
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">WOW AUTOMATION</span>
+              <h3>Encounter highlights</h3>
+            </div>
+            <span id="wow-events-state" class="tiny-status">Checking…</span>
+          </div>
+          <div class="event-options">
+            <label><input id="auto-mark-bosses" type="checkbox" checked> Mark boss victories</label>
+            <label><input id="auto-save-boss-replay" type="checkbox" checked> Save OBS replay</label>
+            <label><input id="auto-tangia-boss-focus" type="checkbox" checked> Mute Tangia during pulls</label>
+          </div>
+          <div id="wow-events-status" class="performance-warning">Looking for a WoW combat log.</div>
+          <div id="boss-focus-verification" class="performance-warning">The first three real boss encounters will verify Tangia Boss Focus.</div>
+          <div id="wow-event-list" class="wow-event-list empty-state">Boss pulls and victories will appear here.</div>
+          <div class="event-actions">
+            <button id="test-wow-event" class="secondary">Test event</button>
+            <span>In WoW, use <code>/combatlog</code> or <code>/ssp events</code>.</span>
+          </div>
+          <p class="helper">During a pull, Boss Focus can mute Tangia automatically. During an active session, a victory also creates a timestamped marker and can save the OBS Replay Buffer.</p>
+        </section>
+
+        <!-- Optimizer writes a low-load profile only after backing up the original OBS files. -->
+        <section class="panel optimizer-panel" data-panel-id="optimizer">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">BROADCAST OPTIMIZER</span>
+              <h3>Performance-first preset</h3>
+            </div>
+            <span id="optimizer-state" class="tiny-status">Checking…</span>
+          </div>
+          <div class="profile-comparison">
+            <div>
+              <small>CURRENT OBS PROFILE</small>
+              <strong id="current-profile">Scanning…</strong>
+              <p id="current-settings">Pending</p>
+            </div>
+            <span class="comparison-arrow">→</span>
+            <div class="recommended-profile">
+              <small>RECOMMENDED</small>
+              <strong>720p · 30 FPS</strong>
+              <p>NVENC H.264 · 3500 Kbps</p>
+            </div>
+          </div>
+          <ul class="preset-list">
+            <li><span>Canvas</span><strong>Keep 1920×1080</strong></li>
+            <li><span>Scaled output</span><strong>1280×720</strong></li>
+            <li><span>Frame rate</span><strong>30 FPS</strong></li>
+            <li><span>Video / audio</span><strong>3500 / 160 Kbps</strong></li>
+            <li><span>Encoder</span><strong>NVENC H.264, CBR, keyframe 2s</strong></li>
+            <li><span>Preset / passes</span><strong>P4 · Single pass</strong></li>
+            <li><span>NVENC extras</span><strong>Look-ahead off · PVT on · 2 B-frames</strong></li>
+            <li><span>Downscale filter</span><strong>Bicubic</strong></li>
+          </ul>
+          <div class="performance-warning">Evidence: OBS lost only one render frame and one encode frame during the stream. CPU and background RAM were the meaningful headroom risks, not NVENC or upload.</div>
+          <p class="helper">Manual companion steps: cap WoW near 90 FPS, disable the Discord overlay, and close unused browser, desktop-assistant, and Battle.net windows. For optional OBS browser sources, enable “Shutdown source when not visible.”</p>
+          <p id="optimizer-verdict" class="helper">This recommendation prioritizes game responsiveness and stream stability.</p>
+          <div class="optimizer-actions">
+            <button id="apply-optimizer" class="primary">Apply 720p30 preset</button>
+            <button id="restore-optimizer" class="secondary" disabled>Restore previous settings</button>
+          </div>
+          <p id="optimizer-action-message" class="optimizer-action-message" role="status">Close OBS before changing settings. John's Twitch Handler saves the current profile first.</p>
+        </section>
+
+        <!-- Reports persist locally as JSON; CSV is generated when downloaded. -->
+        <section class="panel report-panel" data-panel-id="report">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">POST-STREAM REPORT</span>
+              <h3>Session pulse</h3>
+            </div>
+            <button class="text-button" id="load-latest">Latest</button>
+          </div>
+          <div class="metrics">
+            <div><strong id="metric-duration">0</strong><span>minutes</span></div>
+            <div><strong id="metric-highlights">0</strong><span>highlights</span></div>
+            <div><strong id="metric-scenes">0</strong><span>scene changes</span></div>
+          </div>
+          <div id="report-performance" class="report-performance">Performance diagnosis appears after a tracked session.</div>
+          <div class="report-section-heading">Post-stream checklist</div>
+          <div id="post-stream-checklist" class="post-stream-checklist">
+            <label><input type="checkbox" data-post-task="clips"> Export clip markers and open StreamLadder</label>
+            <label><input type="checkbox" data-post-task="title"> Update the next stream title and category</label>
+            <label><input type="checkbox" data-post-task="highlights"> Check highlights and clip edit links</label>
+            <label><input type="checkbox" data-post-task="performance"> Review performance and connection incidents</label>
+            <label><input type="checkbox" data-post-task="backup"> Back up important local recordings</label>
+          </div>
+          <div class="post-stream-actions">
+            <a class="secondary button-link" href="/api/reports/latest.csv" download="streamsidekick-highlights.csv">Export markers</a>
+            <a class="secondary button-link" id="open-twitch-stream-manager" href="https://dashboard.twitch.tv/" target="_blank" rel="noreferrer">Update Twitch ↗</a>
+            <a class="primary button-link" href="https://app.streamladder.com/" target="_blank" rel="noreferrer">Open StreamLadder ↗</a>
+          </div>
+          <div class="report-section-heading">Stream timeline</div>
+          <div id="stream-timeline" class="stream-timeline empty-state">Scene changes, highlights, Twitch events, breaks, and performance incidents will appear here.</div>
+          <div class="report-section-heading">Highlights</div>
+          <div id="marker-list" class="marker-list empty-state">Your marked moments will appear here.</div>
+          <div class="report-section-heading">StreamLadder publishing queue</div>
+          <div id="clip-publishing-queue" class="clip-publishing-queue empty-state">Create a Twitch clip to prepare it for TikTok and YouTube.</div>
+          <p class="helper">John’s Twitch Handler copies the public clip link and opens StreamLadder. Editing, social sign-in, scheduling, and publishing stay inside StreamLadder.</p>
+          <div class="report-section-heading">Tangia, ads, and connection activity</div>
+          <div id="session-activity-list" class="marker-list empty-state">Tangia interactions, ad breaks, and connection hiccups will appear here.</div>
+          <div class="report-actions">
+            <a class="secondary button-link" href="/api/reports/latest.csv" download="streamsidekick-highlights.csv">Export CSV</a>
+            <a class="primary button-link" href="https://app.streamladder.com/" target="_blank" rel="noreferrer">Open StreamLadder ↗</a>
+          </div>
+        </section>
+      </div>
+    </main>
+  </div>
+
+  <dialog id="preflight-visibility-dialog">
+    <form method="dialog" class="settings-card compact-dialog">
+      <div class="panel-heading">
+        <div><span class="eyebrow">DISPLAY ONLY</span><h3>Preflight visibility</h3></div>
+        <button class="icon-button" value="cancel" aria-label="Close preflight visibility">×</button>
+      </div>
+      <p class="helper">Uncheck a built-in row to hide it from the checklist. This does not disconnect anything, change an optional integration, or alter readiness.</p>
+      <div id="preflight-visibility-list" class="preflight-visibility-list"></div>
+      <div class="settings-button-row">
+        <button id="reset-preflight-visibility" type="button" class="secondary">Show all fields</button>
+        <button value="close" class="primary">Done</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Passwords and access tokens are submitted to the local server but never stored by the browser. -->
+  <dialog id="settings-dialog">
+    <form method="dialog" class="settings-card">
+      <div class="panel-heading">
+        <div><span class="eyebrow">CONNECTIONS</span><h3>Settings</h3></div>
+        <button class="icon-button" value="cancel" aria-label="Close settings">×</button>
+      </div>
+
+      <section class="quick-setup" aria-labelledby="quick-setup-title">
+        <span class="eyebrow">FIRST RUN</span>
+        <h4 id="quick-setup-title">Three simple steps</h4>
+        <ol>
+          <li>Open OBS and paste its WebSocket password below.</li>
+          <li>Click <strong>Connect with Twitch</strong> and approve the Handler.</li>
+          <li>Turn off any optional service you do not use.</li>
+        </ol>
+        <div class="optional-integration-choices">
+          <div class="optional-choice"><strong>Use Spotify?</strong><div><button type="button" class="choice-button" data-integration-choice="spotify" data-enabled="true">Yes</button><button type="button" class="choice-button" data-integration-choice="spotify" data-enabled="false">No</button></div></div>
+          <div class="optional-choice"><strong>Use Tangia?</strong><div><button type="button" class="choice-button" data-integration-choice="tangia" data-enabled="true">Yes</button><button type="button" class="choice-button" data-integration-choice="tangia" data-enabled="false">No</button></div></div>
+          <div class="optional-choice"><strong>Use StreamElements?</strong><div><button type="button" class="choice-button" data-integration-choice="streamelements" data-enabled="true">Yes</button><button type="button" class="choice-button" data-integration-choice="streamelements" data-enabled="false">No</button></div></div>
+          <div class="optional-choice"><strong>Use TikFinity for TikTok chat?</strong><div><button type="button" class="choice-button" data-integration-choice="tikfinity" data-enabled="true">Yes</button><button type="button" class="choice-button" data-integration-choice="tikfinity" data-enabled="false">No</button></div></div>
+        </div>
+        <small class="optional-choice-help">Choose No to hide that tool and mark it blue as intentionally skipped in Preflight. You can change this at any time.</small>
+      </section>
+
+      <section class="privacy-notice" aria-label="Tester privacy">
+        <strong>🔒 Private to this computer</strong>
+        <p>Nothing you enter is sent to John or remotely stored by John. Connections, preferences, and reports stay on this PC. Login credentials are encrypted for your Windows account. John sees information only if you personally choose to send him an exported diagnostic file.</p>
+      </section>
+
+      <fieldset>
+        <legend>OBS WebSocket</legend>
+        <label>Password<input id="obs-password" type="password" placeholder="OBS WebSocket password" autocomplete="off"></label>
+        <button type="button" id="connect-obs" class="primary">Connect OBS</button>
+        <small>Find this in OBS under Tools → WebSocket Server Settings. After a successful connection, the address and password are encrypted for your Windows account and reused automatically.</small>
+        <details class="connection-diagnostics">
+          <summary>Advanced: nonstandard OBS address</summary>
+          <label>Address<input id="obs-url" value="ws://127.0.0.1:4455" autocomplete="off"></label>
+        </details>
+      </fieldset>
+
+      <fieldset>
+        <legend>Twitch (optional)</legend>
+        <div class="settings-button-row">
+          <button type="button" id="connect-twitch-oauth" class="primary">Connect with Twitch</button>
+          <button type="button" id="disconnect-twitch" class="secondary">Disconnect</button>
+        </div>
+        <small>No Broadcaster ID or token is needed. Twitch identifies the authorized channel and renewable tokens are encrypted for this Windows account.</small>
+        <details class="connection-diagnostics">
+          <summary>Advanced: developer ID or manual token</summary>
+          <label>Channel name<input id="twitch-channel-name" placeholder="Normally detected automatically" autocomplete="off"></label>
+          <label>Twitch application Client ID<input id="twitch-client-id" autocomplete="off" placeholder="Only needed in an owner/developer build"></label>
+          <label>Broadcaster ID<input id="twitch-broadcaster-id" autocomplete="off"></label>
+          <label>User access token<input id="twitch-token" type="password" autocomplete="off"></label>
+          <button type="button" id="connect-twitch" class="secondary">Use manual token</button>
+          <small>Testers should not use these fields. Manual tokens cannot renew themselves.</small>
+        </details>
+      </fieldset>
+
+      <fieldset>
+        <legend>YouTube live chat (optional)</legend>
+        <label>Current livestream URL<input id="youtube-live-url" autocomplete="off" placeholder="https://www.youtube.com/watch?v=..."></label>
+        <div class="settings-button-row">
+          <button type="button" id="show-youtube-chat" class="primary">Show YouTube chat</button>
+          <button type="button" id="clear-youtube-chat" class="secondary">Remove</button>
+        </div>
+        <small>Paste the current YouTube livestream or youtu.be URL. The official chat is embedded beside Twitch. This does not grant the Handler access to your Google account, and automated messages remain Twitch-only.</small>
+      </fieldset>
+
+      <fieldset id="spotify-settings">
+        <legend>Spotify song requests</legend>
+        <div class="settings-button-row">
+          <button type="button" id="connect-spotify" class="primary">Connect Spotify</button>
+          <button type="button" id="disconnect-spotify" class="secondary">Disconnect</button>
+        </div>
+        <small>Optional. Sign-in opens in your browser and the connection is encrypted locally. Testers who skip Spotify do not need a Spotify account or developer application.</small>
+        <details class="connection-diagnostics">
+          <summary>Advanced: Spotify developer ID</summary>
+          <label>Spotify application Client ID<input id="spotify-client-id" autocomplete="off" placeholder="Only needed in an owner/developer build"></label>
+          <small>The app owner must register <code>http://127.0.0.1:5274/api/spotify/callback</code>.</small>
+        </details>
+      </fieldset>
+      <p id="settings-message" class="message" role="status"></p>
+      <details class="connection-diagnostics">
+        <summary>Connection help and recent log</summary>
+        <div id="connection-diagnostics-list" class="connection-diagnostics-list">Open this section to load recent connection results.</div>
+        <a class="secondary button-link diagnostic-download" href="/api/diagnostics/export" download>Export safe diagnostic report</a>
+      </details>
+    </form>
+  </dialog>
+
+  <div id="toast" class="toast" role="status"></div>
+  <script src="app.js?v=004"></script>
+</body>
+</html>
