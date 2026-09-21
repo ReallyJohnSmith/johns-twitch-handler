@@ -1,5 +1,14 @@
 # John's Twitch Handler release history
 
+## .007 - 2026-09-21
+
+- Added default **Simple** mode with one interpreted status and one clear next action for each stream stage.
+- Added **Advanced** mode that preserves the complete existing dashboard, raw metrics, diagnostics, and customization.
+- Added plain-English Pre-stream readiness, During-stream health, and After-stream report summaries.
+- Kept every current feature and setting on the same underlying local services without duplicating configuration.
+- Added a Details control in Simple mode for progressively revealing the existing full interface.
+- Made internet health part of the interpreted readiness result.
+
 ## .006 - 2026-09-21
 
 - Added **Customize pages** so users choose which cards appear on Pre-stream, During stream, and After stream.

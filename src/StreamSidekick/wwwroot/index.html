@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0d13">
   <title>John's Twitch Handler</title>
-  <link rel="stylesheet" href="styles.css?v=006">
+  <link rel="stylesheet" href="styles.css?v=007">
 </head>
-<body>
+<body data-user-mode="simple">
   <!-- A real fixed element is used instead of a body pseudo-element so browser compositors cannot clip it. -->
   <div id="status-border" class="status-border warning" aria-hidden="true"></div>
   <div class="shell">
@@ -24,8 +24,12 @@
       </div>
       <div class="status-strip">
         <span class="privacy-pill" title="John cannot see your settings, credentials, reports, or activity.">🔒 Data stays on this PC</span>
-        <span class="layout-hint">Drag to move · corner to resize · −/+ to collapse</span>
-        <label class="theme-picker" title="Choose a dashboard color theme">
+        <div class="user-mode-switch" role="group" aria-label="Dashboard detail level">
+          <button type="button" class="active" data-user-mode="simple" aria-pressed="true">Simple</button>
+          <button type="button" data-user-mode="advanced" aria-pressed="false">Advanced</button>
+        </div>
+        <span class="layout-hint advanced-only">Drag to move · corner to resize · −/+ to collapse</span>
+        <label class="theme-picker advanced-only" title="Choose a dashboard color theme">
           <span>Theme</span>
           <select id="theme-select" aria-label="Dashboard color theme">
             <option value="midnight">Midnight</option>
@@ -35,9 +39,9 @@
             <option value="slate">Slate</option>
           </select>
         </label>
-        <span id="obs-pill" class="pill offline"><i></i> OBS offline</span>
-        <span id="session-pill" class="pill neutral"><i></i> No session</span>
-        <button class="icon-button" id="reset-layout" aria-label="Reset dashboard layout" title="Reset dashboard layout">↺</button>
+        <span id="obs-pill" class="pill offline advanced-only"><i></i> OBS offline</span>
+        <span id="session-pill" class="pill neutral advanced-only"><i></i> No session</span>
+        <button class="icon-button advanced-only" id="reset-layout" aria-label="Reset dashboard layout" title="Reset dashboard layout">↺</button>
         <button class="icon-button" id="settings-button" aria-label="Open settings">⚙</button>
       </div>
     </header>
@@ -58,7 +62,7 @@
           <span class="phase-nav-number">3</span>
           <span><strong>After stream</strong><small>Review and publish</small></span>
         </button>
-        <button class="phase-nav-customize" id="customize-pages" type="button">Customize pages</button>
+        <button class="phase-nav-customize advanced-only" id="customize-pages" type="button">Customize pages</button>
         <div class="phase-nav-context" aria-live="polite">
           <strong id="workspace-page-title">Pre-stream</strong>
           <span id="workspace-page-summary">Complete the checklist and confirm your integrations before going live.</span>
@@ -67,12 +71,12 @@
 
       <main id="workspace-main" tabindex="-1">
       <!-- Session tracking is separate from OBS going live; it defines the reporting time window. -->
-      <section class="hero-card">
+      <section class="hero-card advanced-detail">
         <div class="session-copy">
           <span class="eyebrow">CURRENT SESSION</span>
           <h2 id="session-title">Ready when you are</h2>
           <p id="session-subtitle">Connect OBS, run the preflight, and start tracking the show.</p>
-          <div class="border-legend" aria-label="Dashboard border color meanings">
+          <div class="border-legend advanced-only" aria-label="Dashboard border color meanings">
             <span><i class="live" aria-hidden="true"></i><strong>Red:</strong> live</span>
             <span><i class="warning" aria-hidden="true"></i><strong>Yellow:</strong> preflight incomplete</span>
             <span><i class="ready" aria-hidden="true"></i><strong>Green:</strong> ready to go live</span>
@@ -151,8 +155,28 @@
         </section>
       </section>
 
+      <!-- Simple mode interprets the same live state used by the detailed cards below. -->
+      <section class="simple-summary" id="simple-summary" aria-live="polite">
+        <div class="simple-summary-hero" id="simple-summary-hero">
+          <span class="simple-summary-icon" id="simple-summary-icon">…</span>
+          <div>
+            <small id="simple-summary-question">AM I READY TO STREAM?</small>
+            <h2 id="simple-summary-title">Checking your setup</h2>
+            <p id="simple-summary-detail">John's Twitch Handler is checking the essentials for you.</p>
+          </div>
+        </div>
+        <div class="simple-status-list" id="simple-status-list"></div>
+        <div class="simple-title-row" id="simple-title-row">
+          <input id="simple-stream-title" type="text" maxlength="100" placeholder="Tonight's stream title (optional)">
+        </div>
+        <div class="simple-summary-actions">
+          <button id="simple-primary-action" class="primary" type="button">Checking…</button>
+          <button id="simple-details-toggle" class="secondary" type="button">Show details</button>
+        </div>
+      </section>
+
       <!-- Every direct child is a movable card. data-panel-id is its durable saved-layout key. -->
-      <div class="dashboard-grid">
+      <div class="dashboard-grid advanced-detail">
 
         <!-- Demo mode tells the complete product story without changing OBS, accounts, or reports. -->
         <section class="panel stream-health-panel" data-panel-id="stream-health" data-panel-span="12" data-pages="pre during after">
@@ -848,6 +872,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=006"></script>
+  <script src="app.js?v=007"></script>
 </body>
 </html>

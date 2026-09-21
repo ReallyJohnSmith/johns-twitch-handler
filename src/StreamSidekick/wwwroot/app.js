@@ -267,8 +267,7 @@ async function setOptionalIntegration(name, enabled) {
   toast(`${label} ${state[key] ? "enabled" : "skipped"} on this computer.`);
 }
 
-function updateDashboardBorder() {
-  const live = Boolean(state.obs?.streamActive);
+function getReadinessAssessment() {
   const preflight = state.preflight;
   const spotifyReady = !state.spotifyEnabled || Boolean(state.spotify?.connected && state.spotify?.playback);
   const musicOverlayReady = !state.spotifyEnabled || Boolean(preflight?.musicOverlayConfigured);
@@ -276,13 +275,16 @@ function updateDashboardBorder() {
   const streamElementsReady = !state.streamElementsEnabled || Boolean(preflight?.streamElementsReady);
   const tikFinityReady = !state.tikFinityEnabled || Boolean(preflight?.tikFinityReady);
   const manualItemsReady = state.manualPreflightItems.every(item => item.checked);
+  const internetReady = Boolean(state.internet?.online)
+    && !["offline", "slow", "unstable"].includes(state.internet?.status);
   // An intentionally disabled integration is ready by definition. This preserves the full feature
   // set for John while keeping a tester's border honest about only the tools they chose to use.
-  const allReady = Boolean(
+  const ready = Boolean(
     preflight?.obsConnected
     && preflight?.microphoneReady
     && preflight?.nvidiaBroadcast?.running
     && preflight?.twitchRewardsReady
+    && internetReady
     && spotifyReady
     && musicOverlayReady
     && tangiaReady
@@ -291,8 +293,24 @@ function updateDashboardBorder() {
     && manualItemsReady
   );
 
+  return {
+    ready,
+    internetReady,
+    spotifyReady,
+    musicOverlayReady,
+    tangiaReady,
+    streamElementsReady,
+    tikFinityReady,
+    manualItemsReady
+  };
+}
+
+function updateDashboardBorder() {
+  const live = Boolean(state.obs?.streamActive);
+  const readiness = getReadinessAssessment();
+
   const border = $("#status-border");
-  border.className = `status-border ${live ? "live" : allReady ? "ready" : "warning"}`;
+  border.className = `status-border ${live ? "live" : readiness.ready ? "ready" : "warning"}`;
 }
 
 async function refreshPreflight() {
@@ -353,6 +371,7 @@ async function refreshPreflight() {
   } catch (error) {
     state.preflight = null;
     updateDashboardBorder();
+    renderSimpleExperience();
     toast(error.message, true);
   }
 }
@@ -660,6 +679,7 @@ function renderSession() {
   $("#stream-title").disabled = active;
   $("#session-title").textContent = active ? (state.report?.title || "Session in progress") : "Ready when you are";
   $("#session-subtitle").textContent = active ? "Markers, scene changes, ads, and logged interactions are being recorded." : "Connect OBS, run the preflight, and start tracking the show.";
+  renderSimpleExperience();
 }
 
 function renderReport(report) {
@@ -698,6 +718,7 @@ function renderReport(report) {
       return `<div class="marker-row"><span class="marker-time">${formatOffset(offset)}</span><div><strong>${escapeHtml(activity.detail)}</strong><small>${escapeHtml(activity.type)}</small></div></div>`;
     }).join("");
   }
+  renderSimpleExperience();
 }
 
 const clipPublishingStorageKey = "johns-handler.clip-publishing";
@@ -1026,6 +1047,7 @@ async function refreshPerformance() {
     evaluateHeadroom();
   } catch {
     $("#performance-state").textContent = "Unavailable";
+    renderSimpleExperience();
   }
 }
 
@@ -1117,6 +1139,7 @@ function evaluateHeadroom() {
   const warning = $("#performance-warning");
   warning.textContent = actions.length ? actions.join(" ") : "CPU, GPU, internet latency, OBS rendering, and network output all have healthy headroom.";
   warning.classList.toggle("alert", severe);
+  renderSimpleExperience();
 }
 
 function setHeadroomSignal(selector, text, level) {
@@ -1478,6 +1501,7 @@ const panelSizesStorageKey = "streamsidekick.panelSizes";
 const themeStorageKey = "streamsidekick.theme";
 const workspaceStorageKey = "streamsidekick.workspacePage";
 const panelPagesStorageKey = "streamsidekick.panelPages";
+const userModeStorageKey = "streamsidekick.userMode";
 const defaultPanelOrder = ["stream-health", "clips", "scenes", "audio", "chat", "alerts", "commands", "automations", "raids", "viewers", "streamelements", "tikfinity", "tangia", "ads", "spotify", "performance", "optimizer", "report"];
 let layoutSaveChain = Promise.resolve();
 
@@ -1495,6 +1519,196 @@ const workspacePages = {
     summary: "Review the timeline, performance, clips, raids, and publishing checklist."
   }
 };
+
+function initializeUserMode() {
+  const saved = localStorage.getItem(userModeStorageKey);
+  applyUserMode(saved === "advanced" ? "advanced" : "simple", false);
+  $$('[data-user-mode]').forEach(button => button.addEventListener("click", () => {
+    applyUserMode(button.dataset.userMode, true);
+  }));
+  $("#simple-details-toggle").addEventListener("click", () => {
+    setSimpleDetails(!document.body.classList.contains("simple-details-open"));
+  });
+  $("#simple-primary-action").addEventListener("click", runSimplePrimaryAction);
+  $("#simple-stream-title").addEventListener("input", event => {
+    $("#stream-title").value = event.target.value;
+  });
+  $("#stream-title").addEventListener("input", event => {
+    $("#simple-stream-title").value = event.target.value;
+  });
+}
+
+function applyUserMode(mode, persist) {
+  const selected = mode === "advanced" ? "advanced" : "simple";
+  document.body.dataset.userMode = selected;
+  if (selected === "advanced") document.body.classList.remove("simple-details-open");
+  $$('[data-user-mode]').forEach(button => {
+    const active = button.dataset.userMode === selected;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  if (persist) {
+    localStorage.setItem(userModeStorageKey, selected);
+    toast(`${selected === "simple" ? "Simple" : "Advanced"} mode selected.`);
+  }
+  renderSimpleExperience();
+}
+
+function setSimpleDetails(open) {
+  document.body.classList.toggle("simple-details-open", open);
+  $("#simple-details-toggle").textContent = open ? "Hide details" : "Show details";
+  if (!open) $("#simple-summary").scrollIntoView({ behavior: "smooth", block: "start" });
+}
+
+function simpleStatusItem(label, status, level = "ready") {
+  const icon = level === "ready" ? "✓" : level === "critical" ? "!" : level === "warning" ? "!" : "…";
+  return `<div class="simple-status-item ${level}"><i>${icon}</i><div><strong>${escapeHtml(label)}</strong><small>${escapeHtml(status)}</small></div></div>`;
+}
+
+function setSimpleSummary(model) {
+  const summary = $("#simple-summary");
+  if (!summary) return;
+  summary.className = `simple-summary ${model.level || "neutral"}`;
+  $("#simple-summary-icon").textContent = model.icon || "…";
+  $("#simple-summary-question").textContent = model.question;
+  $("#simple-summary-title").textContent = model.title;
+  $("#simple-summary-detail").textContent = model.detail;
+  $("#simple-status-list").innerHTML = (model.items || []).map(item =>
+    simpleStatusItem(item.label, item.status, item.level)).join("");
+  $("#simple-title-row").hidden = model.showTitle !== true;
+  const action = $("#simple-primary-action");
+  action.textContent = model.actionLabel || "Show details";
+  action.dataset.action = model.action || "show-details";
+  action.disabled = model.action === "waiting";
+}
+
+function getSimplePreStreamModel() {
+  const preflight = state.preflight;
+  const readiness = getReadinessAssessment();
+  const internetStatus = state.internet?.status || "checking";
+  const internetLevel = readiness.internetReady ? "ready" : internetStatus === "offline" ? "critical" : "warning";
+  const items = [
+    { label: "OBS", status: preflight?.obsConnected ? "Connected" : "Not connected", level: preflight?.obsConnected ? "ready" : "warning" },
+    { label: "Twitch", status: preflight?.twitchRewardsReady ? "Connected" : "Needs attention", level: preflight?.twitchRewardsReady ? "ready" : "warning" },
+    { label: "Microphone", status: preflight?.microphoneReady ? "Ready" : "Needs attention", level: preflight?.microphoneReady ? "ready" : "warning" },
+    { label: "Internet", status: readiness.internetReady ? "Healthy" : internetStatus === "checking" ? "Checking" : "Needs attention", level: internetLevel }
+  ];
+
+  if (!preflight) return {
+    level: "neutral", icon: "…", question: "AM I READY TO STREAM?", title: "Checking your setup",
+    detail: "John's Twitch Handler is checking the essentials for you.", items, action: "waiting", actionLabel: "Checking…", showTitle: true
+  };
+  if (readiness.ready) return {
+    level: "healthy", icon: "✓", question: "AM I READY TO STREAM?", title: "READY TO STREAM",
+    detail: "Everything looks good.", items, action: "start-session", actionLabel: "Start session", showTitle: true
+  };
+
+  let detail = "A few things need attention before you go live.";
+  let action = "show-preflight";
+  let actionLabel = "Review setup";
+  if (!preflight.obsConnected) {
+    detail = "OBS is not connected yet. I can take you to the connection step.";
+    action = "open-settings";
+    actionLabel = "Connect OBS";
+  } else if (!preflight.twitchRewardsReady) {
+    detail = "Twitch needs to be connected so chat, alerts, and viewer actions can work.";
+    action = "open-settings";
+    actionLabel = "Connect Twitch";
+  } else if (!preflight.microphoneReady) {
+    detail = "Your microphone is not ready in OBS.";
+    action = "check-microphone";
+    actionLabel = "Check microphone";
+  } else if (!preflight.nvidiaBroadcast?.running) {
+    detail = "NVIDIA Broadcast is not running yet.";
+    action = "launch-nvidia";
+    actionLabel = "Open NVIDIA Broadcast";
+  } else if (!readiness.internetReady) {
+    detail = internetStatus === "checking" ? "Waiting for the first internet health check." : "Your internet connection needs attention before streaming.";
+    action = internetStatus === "checking" ? "waiting" : "show-health";
+    actionLabel = internetStatus === "checking" ? "Checking…" : "Review connection";
+  }
+  return { level: internetStatus === "offline" ? "critical" : "warning", icon: "!", question: "AM I READY TO STREAM?", title: "NOT READY YET", detail, items, action, actionLabel, showTitle: true };
+}
+
+function getSimpleDuringModel() {
+  const current = state.system?.current;
+  if (!current) return {
+    level: "neutral", icon: "…", question: "IS EVERYTHING OKAY?", title: "Checking stream health",
+    detail: "I am collecting enough information to give you a clear answer.", items: [], action: "waiting", actionLabel: "Checking…"
+  };
+  const cpu = Number(current.cpuPercent) || 0;
+  const gpu = Number(current.gpuPercent) || 0;
+  const renderMissed = Number(state.obs?.renderSkippedPercent) || 0;
+  const encoderMissed = Number(state.obs?.outputSkippedPercent) || 0;
+  const congestion = Number(state.obs?.outputCongestion) || 0;
+  const internetStatus = state.internet?.status || "checking";
+  const internetProblem = internetStatus === "offline" || internetStatus === "unstable" || congestion >= .1;
+  const severe = Math.max(cpu, gpu) >= 95 || renderMissed >= 1 || encoderMissed >= 1 || internetProblem;
+  const limited = severe || Math.max(cpu, gpu) >= 85 || renderMissed >= .25 || congestion > .02 || internetStatus === "slow";
+  const obsHealthy = state.obs?.connected && renderMissed < .25 && encoderMissed < 1;
+  const items = [
+    { label: "OBS", status: !state.obs?.connected ? "Not connected" : obsHealthy ? "Healthy" : "Under pressure", level: !state.obs?.connected ? "warning" : obsHealthy ? "ready" : "warning" },
+    { label: "Internet", status: internetStatus === "healthy" ? "Healthy" : internetStatus === "checking" ? "Checking" : "Needs attention", level: internetStatus === "healthy" ? "ready" : internetStatus === "offline" ? "critical" : "warning" },
+    { label: "Computer", status: Math.max(cpu, gpu) < 85 ? "Healthy" : "Under pressure", level: Math.max(cpu, gpu) < 85 ? "ready" : severe ? "critical" : "warning" },
+    { label: "Session", status: state.sessionActive ? "Tracking" : "Not tracking", level: state.sessionActive ? "ready" : "warning" }
+  ];
+  if (!limited) return {
+    level: "healthy", icon: "✓", question: "IS EVERYTHING OKAY?", title: "STREAM HEALTHY",
+    detail: "Everything looks good.", items, action: "show-controls", actionLabel: "Open stream controls"
+  };
+
+  let detail = "OBS is beginning to struggle. Open the recommended fix to see what is causing it.";
+  if (internetProblem) detail = "Your connection appears to be the likely cause. Your computer is still rendering normally.";
+  else if (gpu >= cpu && (gpu >= 85 || renderMissed >= .25)) detail = "Your GPU appears to be the likely cause of the rendering pressure.";
+  else if (cpu >= 85) detail = "Your processor appears to be the likely cause of the performance pressure.";
+  else if (encoderMissed >= 1) detail = "OBS is having trouble encoding frames, but your current stream remains connected.";
+  return {
+    level: severe ? "critical" : "warning", icon: "!", question: "IS EVERYTHING OKAY?",
+    title: severe ? "STREAM PERFORMANCE NEEDS ATTENTION" : "PERFORMANCE PRESSURE DETECTED",
+    detail, items, action: "show-health", actionLabel: "Fix it"
+  };
+}
+
+function getSimpleAfterModel() {
+  const report = state.report;
+  if (!report) return {
+    level: "neutral", icon: "…", question: "HOW DID MY STREAM GO?", title: "No stream report yet",
+    detail: "End a tracked session or load your latest report to see the plain-English summary.", items: [], action: "load-report", actionLabel: "Load latest report"
+  };
+  const issues = (report.timeline || []).filter(item => item.severity === "warning" || item.severity === "critical");
+  const healthy = issues.length === 0;
+  const items = [
+    { label: "Stream time", status: `${Math.round(report.durationMinutes || 0)} minutes`, level: "ready" },
+    { label: "Highlights", status: `${report.highlightCount || 0} saved`, level: "ready" },
+    { label: "Issues", status: issues.length ? `${issues.length} detected` : "None detected", level: healthy ? "ready" : "warning" },
+    { label: "Scenes", status: `${report.sceneChangeCount || 0} changes`, level: "ready" }
+  ];
+  return {
+    level: healthy ? "healthy" : "warning", icon: healthy ? "✓" : "!", question: "HOW DID MY STREAM GO?",
+    title: healthy ? "YOUR STREAM LOOKED GOOD" : `YOU HAD ${issues.length} ${issues.length === 1 ? "ISSUE" : "ISSUES"}`,
+    detail: report.performanceSummary || (healthy ? "Everything looked good." : "Review the recommendation before your next stream."),
+    items, action: "show-report", actionLabel: "Review report"
+  };
+}
+
+function renderSimpleExperience() {
+  const page = document.body.dataset.workspacePage || "pre";
+  const model = page === "during" ? getSimpleDuringModel() : page === "after" ? getSimpleAfterModel() : getSimplePreStreamModel();
+  setSimpleSummary(model);
+}
+
+async function runSimplePrimaryAction() {
+  const action = $("#simple-primary-action").dataset.action;
+  if (action === "open-settings") openSettings();
+  else if (action === "check-microphone") $("#unmute-microphone").click();
+  else if (action === "launch-nvidia") $("#launch-nvidia").click();
+  else if (action === "start-session") $("#session-toggle").click();
+  else if (action === "load-report") { await refreshReport(true); renderSimpleExperience(); }
+  else if (action === "show-report") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="report"]'), "after"); }
+  else if (action === "show-controls") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="scenes"]'), "during"); }
+  else if (action === "show-health") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="performance"]'), document.body.dataset.workspacePage || "during"); }
+  else if (action === "show-preflight" || action === "show-details") setSimpleDetails(true);
+}
 
 function initializeWorkspaceNavigation() {
   const saved = localStorage.getItem(workspaceStorageKey);
@@ -1563,6 +1777,11 @@ function setActiveWorkspace(page, options = {}) {
   if (options.persist !== false) localStorage.setItem(workspaceStorageKey, selected);
   if (options.focus) $("#workspace-main").focus({ preventScroll: true });
   if (options.announce) toast(`${definition.title} workspace opened.`);
+  if (document.body.dataset.userMode === "simple") {
+    document.body.classList.remove("simple-details-open");
+    $("#simple-details-toggle").textContent = "Show details";
+  }
+  renderSimpleExperience();
 }
 
 function showPanel(panel, preferredPage = null) {
@@ -3203,6 +3422,7 @@ async function boot() {
 }
 async function startDashboard() {
   initializeTheme();
+  initializeUserMode();
   renderGuidedDemo();
   await initializeMovablePanels();
   initializeWorkspaceNavigation();

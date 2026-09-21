@@ -10,13 +10,50 @@ John's Twitch Handler is a lightweight Windows streaming companion created prima
 use on his own Twitch channel. John is the primary user and tester. The product should remain useful
 to him personally while also being simple enough for nontechnical testers to download and open.
 
-Current approved version: **.006**
+Current approved version: **.007**
 
 Source repository: <https://github.com/ReallyJohnSmith/johns-twitch-handler>
 
 The Handler combines stream preparation, live controls, chat tools, viewer integrations, performance
 monitoring, and post-stream review in one local dashboard. Its central design rule is that a tool
 intended to protect stream performance must not become a meaningful resource drain itself.
+
+## Primary product direction
+
+**Simplicity and ease of use take priority above everything else.** Do not remove working
+functionality; simplify how it is presented.
+
+The product has two user modes backed by the same systems and settings:
+
+- **Simple** is the default. It presents one obvious status, one obvious next action, plain-English
+  explanations, automatic setup, sensible defaults, and minimal technical detail. Raw metrics and
+  configuration stay behind Details.
+- **Advanced** exposes raw performance metrics, OBS and WebSocket details, integration diagnostics,
+  detailed configuration, full customization, and troubleshooting information.
+
+Keep the Pre-stream, During stream, and After stream workflow, but center each stage on one question:
+
+1. **Before: Am I ready to stream?** Summarize OBS, Twitch, microphone, and internet readiness.
+2. **During: Is everything okay?** Lead with a clear healthy state or explain the detected problem,
+   likely cause, and a safe next action.
+3. **After: How did my stream go?** Summarize incidents, recovery, and the most useful recommendation.
+
+The Handler should increasingly say **“Everything looks good.”** instead of asking the user to
+interpret ten metrics. When something is wrong, prefer **“I found a problem. Fix it?”** over requiring
+the user to understand OBS, GPU, encoder, networking, WebSocket, or OAuth terminology.
+
+Development priority:
+
+1. Simple and Advanced modes.
+2. Simplify existing screens.
+3. Automatic OBS and integration detection.
+4. Stream Health.
+5. Safe one-click Fix It actions.
+6. Before, During, and After demo.
+7. Simple first-run onboarding.
+8. Better post-stream recommendations.
+9. Installer and updater later.
+10. Code signing before broad public distribution.
 
 ## How the application works
 
