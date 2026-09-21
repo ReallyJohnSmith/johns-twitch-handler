@@ -139,6 +139,7 @@ function renderManualPreflightItems() {
     <button class="manual-preflight-remove" type="button" aria-label="Remove ${escapeHtml(item.label)}" title="Remove reminder">×</button>
   </label>`).join("");
   updateDashboardBorder();
+  renderSimpleManualReminders();
 }
 
 function addManualPreflightItem() {
@@ -1536,6 +1537,20 @@ function initializeUserMode() {
   $("#stream-title").addEventListener("input", event => {
     $("#simple-stream-title").value = event.target.value;
   });
+  $("#simple-summary").addEventListener("change", event => {
+    const checkbox = event.target.closest("[data-simple-manual-id]");
+    if (!checkbox) return;
+    const item = state.manualPreflightItems.find(entry => entry.id === checkbox.dataset.simpleManualId);
+    if (!item) return;
+    item.checked = checkbox.checked;
+    saveManualPreflightItems();
+    renderManualPreflightItems();
+    renderSimpleExperience();
+  });
+  $("#simple-summary").addEventListener("click", event => {
+    const button = event.target.closest("[data-simple-tool]");
+    if (button) runSimpleTool(button.dataset.simpleTool);
+  });
 }
 
 function applyUserMode(mode, persist) {
@@ -1563,6 +1578,90 @@ function setSimpleDetails(open) {
 function simpleStatusItem(label, status, level = "ready") {
   const icon = level === "ready" ? "✓" : level === "critical" ? "!" : level === "warning" ? "!" : "…";
   return `<div class="simple-status-item ${level}"><i>${icon}</i><div><strong>${escapeHtml(label)}</strong><small>${escapeHtml(status)}</small></div></div>`;
+}
+
+function renderSimpleManualReminders() {
+  const card = $("#simple-reminders-card");
+  const list = $("#simple-reminder-list");
+  if (!card || !list) return;
+  const onPreStream = (document.body.dataset.workspacePage || "pre") === "pre";
+  card.hidden = !onPreStream;
+  if (!onPreStream) return;
+  list.innerHTML = state.manualPreflightItems.length
+    ? state.manualPreflightItems.map(item => `<label class="simple-reminder ${item.checked ? "done" : ""}">
+        <input type="checkbox" data-simple-manual-id="${escapeHtml(item.id)}" ${item.checked ? "checked" : ""}>
+        <span>${escapeHtml(item.label)}</span>
+      </label>`).join("")
+    : `<p class="muted">No personal reminders are enabled. You can add them under Details.</p>`;
+  const complete = state.manualPreflightItems.length > 0 && state.manualPreflightItems.every(item => item.checked);
+  $("#simple-reminders-state").textContent = complete ? "Complete" : "Not finished";
+  card.className = `simple-feature-card ${complete ? "healthy" : "warning"}`;
+}
+
+function getSimpleHealthSummary() {
+  const current = state.system?.current;
+  const internetStatus = state.internet?.status || "checking";
+  if (!current || internetStatus === "checking") return {
+    level: "neutral", state: "Checking", title: "Checking your computer",
+    detail: "I am checking performance and internet health."
+  };
+  const highestLoad = Math.max(Number(current.cpuPercent) || 0, Number(current.gpuPercent) || 0);
+  const renderMissed = Number(state.obs?.renderSkippedPercent) || 0;
+  const encoderMissed = Number(state.obs?.outputSkippedPercent) || 0;
+  if (internetStatus === "offline" || internetStatus === "unstable") return {
+    level: "critical", state: "Needs attention", title: "Internet problem detected",
+    detail: "Your computer is being monitored, but your connection is not healthy enough for a reliable stream."
+  };
+  if (highestLoad >= 95 || renderMissed >= 1 || encoderMissed >= 1) return {
+    level: "critical", state: "Needs attention", title: "Performance pressure detected",
+    detail: "Your stream computer or OBS is struggling. Open Stream Health for the safest next step."
+  };
+  if (highestLoad >= 85 || renderMissed >= .25 || internetStatus === "slow") return {
+    level: "warning", state: "Watch closely", title: "Headroom is getting low",
+    detail: "The stream should keep working, but John’s Twitch Handler found less room than usual."
+  };
+  return {
+    level: "healthy", state: "Healthy", title: "Everything looks good",
+    detail: state.obs?.connected
+      ? "Your computer, OBS, and internet have healthy headroom."
+      : "Your computer and internet have healthy headroom. OBS checks will appear after it connects."
+  };
+}
+
+function renderSimpleTools(page) {
+  const grid = document.querySelector(".simple-feature-grid");
+  if (grid) grid.dataset.stage = page;
+  renderSimpleManualReminders();
+  const health = getSimpleHealthSummary();
+  const healthCard = $("#simple-health-card");
+  healthCard.className = `simple-feature-card ${health.level}`;
+  $("#simple-health-state").textContent = health.state;
+  $("#simple-health-title").textContent = health.title;
+  $("#simple-health-detail").textContent = health.detail;
+
+  const quickTools = page === "during"
+    ? { title: "During-stream tools", detail: "Keep chat and your most important OBS controls within easy reach.", primary: ["chat", "Open chat"], secondary: ["controls", "Stream controls"] }
+    : page === "after"
+      ? { title: "After-stream tools", detail: "Review the show and prepare the moments you want to share.", primary: ["report", "Review report"], secondary: ["clips", "Clip assistant"] }
+      : { title: "Setup tools", detail: "Refresh the checks or open your saved connection settings.", primary: ["refresh", "Refresh status"], secondary: ["settings", "Connections"] };
+  $("#simple-quick-title").textContent = quickTools.title;
+  $("#simple-quick-detail").textContent = quickTools.detail;
+  const primary = $("#simple-quick-primary");
+  primary.dataset.simpleTool = quickTools.primary[0];
+  primary.textContent = quickTools.primary[1];
+  const secondary = $("#simple-quick-secondary");
+  secondary.dataset.simpleTool = quickTools.secondary[0];
+  secondary.textContent = quickTools.secondary[1];
+}
+
+function runSimpleTool(tool) {
+  if (tool === "refresh") $("#refresh-button").click();
+  else if (tool === "settings") openSettings();
+  else if (tool === "health") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="performance"]'), document.body.dataset.workspacePage || "pre"); }
+  else if (tool === "chat") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="chat"]'), "during"); }
+  else if (tool === "controls") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="scenes"]'), "during"); }
+  else if (tool === "report") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="report"]'), "after"); }
+  else if (tool === "clips") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="clips"]'), "after"); }
 }
 
 function setSimpleSummary(model) {
@@ -1695,6 +1794,7 @@ function renderSimpleExperience() {
   const page = document.body.dataset.workspacePage || "pre";
   const model = page === "during" ? getSimpleDuringModel() : page === "after" ? getSimpleAfterModel() : getSimplePreStreamModel();
   setSimpleSummary(model);
+  renderSimpleTools(page);
 }
 
 async function runSimplePrimaryAction() {

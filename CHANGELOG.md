@@ -1,5 +1,11 @@
 # John's Twitch Handler release history
 
+## .008 - 2026-09-21
+
+- Added personal Preflight reminders, including **Get Coffee**, directly to Simple mode.
+- Added a compact, interpreted Stream Health summary without exposing raw metrics.
+- Added two stage-aware shortcuts for setup, live controls, chat, reports, and clips.
+
 ## .007 - 2026-09-21
 
 - Added default **Simple** mode with one interpreted status and one clear next action for each stream stage.

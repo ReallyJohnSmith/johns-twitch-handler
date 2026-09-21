@@ -10,7 +10,7 @@ John's Twitch Handler is a lightweight Windows streaming companion created prima
 use on his own Twitch channel. John is the primary user and tester. The product should remain useful
 to him personally while also being simple enough for nontechnical testers to download and open.
 
-Current approved version: **.007**
+Current approved version: **.008**
 
 Source repository: <https://github.com/ReallyJohnSmith/johns-twitch-handler>
 
@@ -26,8 +26,9 @@ functionality; simplify how it is presented.
 The product has two user modes backed by the same systems and settings:
 
 - **Simple** is the default. It presents one obvious status, one obvious next action, plain-English
-  explanations, automatic setup, sensible defaults, and minimal technical detail. Raw metrics and
-  configuration stay behind Details.
+  explanations, automatic setup, sensible defaults, and minimal technical detail. It also keeps
+  personal reminders, interpreted Stream Health, and two stage-appropriate shortcuts within reach.
+  Raw metrics and configuration stay behind Details.
 - **Advanced** exposes raw performance metrics, OBS and WebSocket details, integration diagnostics,
   detailed configuration, full customization, and troubleshooting information.
 

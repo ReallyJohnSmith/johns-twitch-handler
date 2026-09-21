@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0d13">
   <title>John's Twitch Handler</title>
-  <link rel="stylesheet" href="styles.css?v=007">
+  <link rel="stylesheet" href="styles.css?v=008">
 </head>
 <body data-user-mode="simple">
   <!-- A real fixed element is used instead of a body pseudo-element so browser compositors cannot clip it. -->
@@ -166,6 +166,43 @@
           </div>
         </div>
         <div class="simple-status-list" id="simple-status-list"></div>
+        <!-- Simple mode keeps a few practical tools visible without exposing the full technical dashboard. -->
+        <div class="simple-feature-grid">
+          <section class="simple-feature-card" id="simple-reminders-card">
+            <div class="simple-feature-heading">
+              <div>
+                <small>PERSONAL CHECKLIST</small>
+                <h3>Before you start</h3>
+              </div>
+              <span id="simple-reminders-state">Not finished</span>
+            </div>
+            <div class="simple-reminder-list" id="simple-reminder-list"></div>
+          </section>
+          <section class="simple-feature-card" id="simple-health-card">
+            <div class="simple-feature-heading">
+              <div>
+                <small>STREAM HEALTH</small>
+                <h3 id="simple-health-title">Checking your computer</h3>
+              </div>
+              <span id="simple-health-state">Checking</span>
+            </div>
+            <p id="simple-health-detail">I am checking performance and internet health.</p>
+            <button class="secondary simple-feature-button" type="button" data-simple-tool="health">View stream health</button>
+          </section>
+          <section class="simple-feature-card" id="simple-quick-card">
+            <div class="simple-feature-heading">
+              <div>
+                <small>QUICK ACCESS</small>
+                <h3 id="simple-quick-title">Useful tools</h3>
+              </div>
+            </div>
+            <p id="simple-quick-detail">Open the tools you are most likely to need right now.</p>
+            <div class="simple-quick-actions">
+              <button class="secondary" id="simple-quick-primary" type="button" data-simple-tool="refresh">Refresh status</button>
+              <button class="secondary" id="simple-quick-secondary" type="button" data-simple-tool="settings">Connections</button>
+            </div>
+          </section>
+        </div>
         <div class="simple-title-row" id="simple-title-row">
           <input id="simple-stream-title" type="text" maxlength="100" placeholder="Tonight's stream title (optional)">
         </div>
@@ -872,6 +909,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=007"></script>
+  <script src="app.js?v=008"></script>
 </body>
 </html>
