@@ -3,7 +3,7 @@ param(
     [Parameter(Mandatory = $true)]
     [string]$TwitchClientId,
     [string]$SpotifyClientId = '',
-    [string]$TesterLabel = 'Funk Test',
+    [string]$TesterLabel = 'Tester',
     [string]$ReleaseVersion = '',
     [switch]$EnableSpotify,
     [switch]$EnableTangia,

@@ -1,5 +1,5 @@
 JOHN'S TWITCH HANDLER TESTER VERSION
-Release: Funk Test
+Release: Tester
 
 START HERE
 

@@ -40,5 +40,5 @@ First numbered owner and tester release.
 - Persistent incoming and outgoing raid timelines for one week, two weeks, and one month.
 - Movable, resizable, collapsible cards; themes; preflight; stream reports; and StreamLadder handoff.
 
-The previously shared unnumbered Funk Test package belongs to this `.001` feature set. Testers should
+The previously shared unnumbered tester package belongs to this `.001` feature set. Testers should
 use the newly stamped `v001` ZIP so the version is visible in the dashboard and diagnostics.
