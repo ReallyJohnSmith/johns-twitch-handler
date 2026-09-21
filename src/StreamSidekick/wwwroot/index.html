@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0d13">
   <title>John's Twitch Handler</title>
-  <link rel="stylesheet" href="styles.css?v=004">
+  <link rel="stylesheet" href="styles.css?v=005">
 </head>
 <body>
   <!-- A real fixed element is used instead of a body pseudo-element so browser compositors cannot clip it. -->
@@ -42,7 +42,29 @@
       </div>
     </header>
 
-    <main>
+    <div class="workspace-layout">
+      <!-- The three phase pages keep the busy live controls away from setup and review work. -->
+      <nav class="phase-nav" aria-label="Stream workflow">
+        <span class="phase-nav-label">STREAM WORKFLOW</span>
+        <button class="phase-nav-button active" type="button" data-workspace-page="pre" aria-current="page">
+          <span class="phase-nav-number">1</span>
+          <span><strong>Pre-stream</strong><small>Connect and prepare</small></span>
+        </button>
+        <button class="phase-nav-button" type="button" data-workspace-page="during">
+          <span class="phase-nav-number">2</span>
+          <span><strong>During stream</strong><small>Run the show</small></span>
+        </button>
+        <button class="phase-nav-button" type="button" data-workspace-page="after">
+          <span class="phase-nav-number">3</span>
+          <span><strong>After stream</strong><small>Review and publish</small></span>
+        </button>
+        <div class="phase-nav-context" aria-live="polite">
+          <strong id="workspace-page-title">Pre-stream</strong>
+          <span id="workspace-page-summary">Complete the checklist and confirm your integrations before going live.</span>
+        </div>
+      </nav>
+
+      <main id="workspace-main" tabindex="-1">
       <!-- Session tracking is separate from OBS going live; it defines the reporting time window. -->
       <section class="hero-card">
         <div class="session-copy">
@@ -132,7 +154,7 @@
       <div class="dashboard-grid">
 
         <!-- Demo mode tells the complete product story without changing OBS, accounts, or reports. -->
-        <section class="panel stream-health-panel" data-panel-id="stream-health" data-panel-span="12">
+        <section class="panel stream-health-panel" data-panel-id="stream-health" data-panel-span="12" data-pages="pre during after">
           <div class="panel-heading">
             <div>
               <span class="eyebrow">BEFORE · DURING · AFTER</span>
@@ -176,7 +198,7 @@
         </section>
 
         <!-- A marker can save an OBS replay, request a Twitch clip, or simply preserve a timestamp. -->
-        <section class="panel clip-panel" data-panel-id="clips">
+        <section class="panel clip-panel" data-panel-id="clips" data-pages="during after">
           <div class="panel-heading">
             <div>
               <span class="eyebrow">SMART CLIP ASSISTANT</span>
@@ -200,7 +222,7 @@
         </section>
 
         <!-- OBS WebSocket drives these scene and replay controls directly. -->
-        <section class="panel scenes-panel" data-panel-id="scenes">
+        <section class="panel scenes-panel" data-panel-id="scenes" data-pages="during">
           <div class="panel-heading">
             <div>
               <span class="eyebrow">OBS CONTROL</span>
@@ -213,7 +235,7 @@
         </section>
 
         <!-- This mixer changes OBS inputs only; it never changes the Windows master volume. -->
-        <section class="panel mixer-panel" data-panel-id="audio">
+        <section class="panel mixer-panel" data-panel-id="audio" data-pages="during">
           <div class="panel-heading">
             <div>
               <span class="eyebrow">OBS AUDIO</span>
@@ -226,7 +248,7 @@
         </section>
 
         <!-- Both platforms remain in their official embeds, so the Handler never handles chat passwords. -->
-        <section class="panel chat-panel" data-panel-id="chat">
+        <section class="panel chat-panel" data-panel-id="chat" data-pages="during">
           <div class="panel-heading">
             <div>
               <span class="eyebrow">MULTIPLATFORM CHAT</span>
@@ -250,7 +272,7 @@
         </section>
 
         <!-- EventSub alerts include local warnings so failed song requests remain visible. -->
-        <section class="panel alerts-panel" data-panel-id="alerts">
+        <section class="panel alerts-panel" data-panel-id="alerts" data-pages="during">
           <div class="panel-heading">
             <div>
               <span class="eyebrow">LIVE ALERTS</span>
@@ -267,7 +289,7 @@
         </section>
 
         <!-- Commands are stored locally and answered through the already connected broadcaster account. -->
-        <section class="panel commands-panel" data-panel-id="commands">
+        <section class="panel commands-panel" data-panel-id="commands" data-pages="pre during">
           <div class="panel-heading">
             <div>
               <span class="eyebrow">CHAT AUTOMATION</span>
@@ -288,7 +310,7 @@
         </section>
 
         <!-- Safe automations expose only reviewed actions, never arbitrary scripts or shell commands. -->
-        <section class="panel automations-panel" data-panel-id="automations">
+        <section class="panel automations-panel" data-panel-id="automations" data-pages="pre during">
           <div class="panel-heading">
             <div><span class="eyebrow">SAFE WORKFLOWS</span><h3>Action & schedule manager</h3></div>
             <span id="automations-state" class="tiny-status">Loading…</span>
@@ -309,7 +331,7 @@
         </section>
 
         <!-- Raid history is local; only the small shortlist is checked against Twitch on request. -->
-        <section class="panel raids-panel" data-panel-id="raids">
+        <section class="panel raids-panel" data-panel-id="raids" data-pages="during after">
           <div class="panel-heading">
             <div>
               <span class="eyebrow">COMMUNITY HANDOFF</span>
@@ -329,7 +351,7 @@
         </section>
 
         <!-- Private viewer notes are local-only and never appear in chat or on the broadcast. -->
-        <section class="panel viewers-panel" data-panel-id="viewers">
+        <section class="panel viewers-panel" data-panel-id="viewers" data-pages="during after">
           <div class="panel-heading">
             <div>
               <span class="eyebrow">COMMUNITY MEMORY</span>
@@ -348,7 +370,7 @@
         </section>
 
         <!-- SE.Live owns credentials and output encoding; this card provides readiness and planning. -->
-        <section class="panel streamelements-panel" data-panel-id="streamelements">
+        <section class="panel streamelements-panel" data-panel-id="streamelements" data-pages="pre during">
           <div class="panel-heading">
             <div>
               <span class="eyebrow">STREAM DESTINATIONS</span>
@@ -384,7 +406,7 @@
         </section>
 
         <!-- TikFinity handles TikTok sign-in; this card reads only its local desktop event feed. -->
-        <section class="panel tikfinity-panel" data-panel-id="tikfinity">
+        <section class="panel tikfinity-panel" data-panel-id="tikfinity" data-pages="pre during">
           <div class="panel-heading">
             <div>
               <span class="eyebrow">OPTIONAL TIKTOK CHAT</span>
@@ -402,7 +424,7 @@
         </section>
 
         <!-- Tangia stays isolated in one OBS Browser Source, keeping controls fast and predictable. -->
-        <section class="panel tangia-panel" data-panel-id="tangia">
+        <section class="panel tangia-panel" data-panel-id="tangia" data-pages="pre during">
           <div class="panel-heading">
             <div>
               <span class="eyebrow">VIEWER INTERACTIONS</span>
@@ -429,7 +451,7 @@
         </section>
 
         <!-- Twitch EventSub supplies real ad starts; the manual timer remains usable without ad scopes. -->
-        <section class="panel ads-panel" data-panel-id="ads">
+        <section class="panel ads-panel" data-panel-id="ads" data-pages="during">
           <div class="panel-heading">
             <div>
               <span class="eyebrow">STREAM BREAK</span>
@@ -455,7 +477,7 @@
         </section>
 
         <!-- Spotify audio remains in the Spotify app; this card controls metadata and its queue. -->
-        <section class="panel spotify-panel" data-panel-id="spotify">
+        <section class="panel spotify-panel" data-panel-id="spotify" data-pages="pre during">
           <div class="panel-heading">
             <div>
               <span class="eyebrow">VIEWER MUSIC</span>
@@ -497,7 +519,7 @@
         </section>
 
         <!-- OS telemetry and OBS dropped-frame data are combined into actionable headroom advice. -->
-        <section class="panel performance-panel" data-panel-id="performance">
+        <section class="panel performance-panel" data-panel-id="performance" data-pages="pre during after">
           <div class="panel-heading">
             <div>
               <span class="eyebrow">SYSTEM MONITOR</span>
@@ -550,7 +572,7 @@
         </section>
 
         <!-- Temporarily disabled, not removed. Set Features:WowTools to true when we bring the WoW addon tools back. -->
-        <section class="panel wow-panel" data-panel-id="wow-addons" hidden>
+        <section class="panel wow-panel" data-panel-id="wow-addons" data-pages="pre during" hidden>
           <div class="panel-heading">
             <div>
               <span class="eyebrow">WORLD OF WARCRAFT</span>
@@ -588,7 +610,7 @@
         </section>
 
         <!-- Temporarily disabled with the addon tools. The encounter implementation is preserved for later. -->
-        <section class="panel wow-events-panel" data-panel-id="wow-events" hidden>
+        <section class="panel wow-events-panel" data-panel-id="wow-events" data-pages="during after" hidden>
           <div class="panel-heading">
             <div>
               <span class="eyebrow">WOW AUTOMATION</span>
@@ -612,7 +634,7 @@
         </section>
 
         <!-- Optimizer writes a low-load profile only after backing up the original OBS files. -->
-        <section class="panel optimizer-panel" data-panel-id="optimizer">
+        <section class="panel optimizer-panel" data-panel-id="optimizer" data-pages="pre after">
           <div class="panel-heading">
             <div>
               <span class="eyebrow">BROADCAST OPTIMIZER</span>
@@ -654,7 +676,7 @@
         </section>
 
         <!-- Reports persist locally as JSON; CSV is generated when downloaded. -->
-        <section class="panel report-panel" data-panel-id="report">
+        <section class="panel report-panel" data-panel-id="report" data-pages="after">
           <div class="panel-heading">
             <div>
               <span class="eyebrow">POST-STREAM REPORT</span>
@@ -696,7 +718,8 @@
           </div>
         </section>
       </div>
-    </main>
+      </main>
+    </div>
   </div>
 
   <dialog id="preflight-visibility-dialog">
@@ -806,6 +829,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=004"></script>
+  <script src="app.js?v=005"></script>
 </body>
 </html>

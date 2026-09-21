@@ -777,6 +777,7 @@ function renderStreamTimeline(report) {
 function revealPostStreamReport() {
   const panel = document.querySelector('[data-panel-id="report"]');
   if (!panel) return;
+  setActiveWorkspace("after", { persist: true });
   if (panel.classList.contains("collapsed")) panel.querySelector(".panel-collapse-button")?.click();
   panel.scrollIntoView({ behavior: "smooth", block: "start" });
 }
@@ -1475,8 +1476,67 @@ const layoutStorageKey = "streamsidekick.panelOrder";
 const collapsedPanelsStorageKey = "streamsidekick.collapsedPanels";
 const panelSizesStorageKey = "streamsidekick.panelSizes";
 const themeStorageKey = "streamsidekick.theme";
+const workspaceStorageKey = "streamsidekick.workspacePage";
 const defaultPanelOrder = ["stream-health", "clips", "scenes", "audio", "chat", "alerts", "commands", "automations", "raids", "viewers", "streamelements", "tikfinity", "tangia", "ads", "spotify", "performance", "optimizer", "report"];
 let layoutSaveChain = Promise.resolve();
+
+const workspacePages = {
+  pre: {
+    title: "Pre-stream",
+    summary: "Complete the checklist and confirm your integrations before going live."
+  },
+  during: {
+    title: "During stream",
+    summary: "Keep live controls, chat, alerts, music, ads, and performance in reach."
+  },
+  after: {
+    title: "After stream",
+    summary: "Review the timeline, performance, clips, raids, and publishing checklist."
+  }
+};
+
+function initializeWorkspaceNavigation() {
+  const saved = localStorage.getItem(workspaceStorageKey);
+  setActiveWorkspace(Object.hasOwn(workspacePages, saved) ? saved : "pre", { persist: false });
+  $$('[data-workspace-page]').forEach(button => button.addEventListener("click", () => {
+    setActiveWorkspace(button.dataset.workspacePage, { focus: true, announce: true });
+  }));
+}
+
+function setActiveWorkspace(page, options = {}) {
+  const selected = Object.hasOwn(workspacePages, page) ? page : "pre";
+  const definition = workspacePages[selected];
+  document.body.dataset.workspacePage = selected;
+
+  $$('[data-workspace-page]').forEach(button => {
+    const active = button.dataset.workspacePage === selected;
+    button.classList.toggle("active", active);
+    if (active) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  });
+
+  $("#workspace-page-title").textContent = definition.title;
+  $("#workspace-page-summary").textContent = definition.summary;
+  $(".preflight-strip").hidden = selected !== "pre";
+  $$(".dashboard-grid > .panel").forEach(panel => {
+    const pages = (panel.dataset.pages || "during").split(/\s+/);
+    panel.classList.toggle("workspace-hidden", !pages.includes(selected));
+  });
+  clearDropIndicators();
+
+  if (options.persist !== false) localStorage.setItem(workspaceStorageKey, selected);
+  if (options.focus) $("#workspace-main").focus({ preventScroll: true });
+  if (options.announce) toast(`${definition.title} workspace opened.`);
+}
+
+function showPanel(panel, preferredPage = null) {
+  if (!panel) return;
+  if (panel.classList.contains("workspace-hidden")) {
+    const pages = (panel.dataset.pages || "during").split(/\s+/);
+    setActiveWorkspace(pages.includes(preferredPage) ? preferredPage : pages[0], { persist: true });
+  }
+  panel.scrollIntoView({ behavior: "smooth", block: "center" });
+}
 
 const themes = {
   midnight: "#090b10",
@@ -1560,7 +1620,7 @@ async function initializeMovablePanels() {
     heading.addEventListener("keydown", event => {
       if (!event.altKey || !["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(event.key)) return;
       event.preventDefault();
-      const panels = $$(".dashboard-grid > .panel");
+      const panels = $$(".dashboard-grid > .panel:not(.workspace-hidden)");
       const target = nearestPanelInDirection(panel, panels, event.key);
       if (!target) return;
       // Swap the two cards rather than inserting across the intervening items. This preserves both
@@ -2044,6 +2104,8 @@ async function toggleSession() {
       });
       state.sessionActive = true;
       state.report = { title: session.title, durationMinutes: 0, highlightCount: 0, sceneChangeCount: 0, markers: [] };
+      // Starting a show moves the interface from setup tools to the live control workspace.
+      setActiveWorkspace("during", { persist: true });
       toast("Session tracking started.");
     }
     renderSession();
@@ -2413,7 +2475,7 @@ $("#test-chat-chime").addEventListener("click", async () => {
 });
 $$("[data-scroll-panel]").forEach(button => button.addEventListener("click", () => {
   const panel = document.querySelector(`[data-panel-id="${CSS.escape(button.dataset.scrollPanel)}"]`);
-  panel?.scrollIntoView({ behavior: "smooth", block: "center" });
+  showPanel(panel, "pre");
 }));
 $("#session-toggle").addEventListener("click", toggleSession);
 $("#add-marker").addEventListener("click", () => addMarker());
@@ -2427,7 +2489,7 @@ $("#unmute-microphone").addEventListener("click", async () => {
     return;
   }
   if (!microphone.found) {
-    document.querySelector('[data-panel-id="audio"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
+    showPanel(document.querySelector('[data-panel-id="audio"]'), "during");
     toast("No OBS microphone was recognized. Name the source Mic/Aux or include Mic in its name.", true);
     return;
   }
@@ -2996,7 +3058,9 @@ function startPolling(task, delayMs, panelId = null) {
       const panel = panelId ? document.querySelector(`[data-panel-id="${CSS.escape(panelId)}"]`) : null;
       // A collapsed card is deliberately out of use. Keep global readiness checks alive, but let
       // optional cards sleep until the streamer expands them again.
-      if (!document.hidden && !panel?.classList.contains("collapsed")) await task();
+      if (!document.hidden
+          && !panel?.classList.contains("collapsed")
+          && !panel?.classList.contains("workspace-hidden")) await task();
     } catch (error) {
       console.debug("Background dashboard refresh failed.", error);
     } finally {
@@ -3053,8 +3117,11 @@ async function boot() {
 }
 async function startDashboard() {
   initializeTheme();
+  initializeWorkspaceNavigation();
   renderGuidedDemo();
   await initializeMovablePanels();
   await boot();
+  // If the app restarts during an active show, return directly to the live controls.
+  if (state.sessionActive) setActiveWorkspace("during", { persist: true });
 }
 startDashboard();

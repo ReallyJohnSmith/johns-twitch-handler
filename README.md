@@ -4,7 +4,7 @@ John's Twitch Handler is a local Windows companion for Twitch streams. It combin
 
 The owner and tester builds use the same approved feature set. Each installation keeps its own connection data locally; credentials are never packaged or synchronized. See `RELEASE_WORKFLOW.md` for the release rules.
 
-The current approved release is **.004**. `RELEASE_VERSION.txt` controls tester package numbering;
+The current approved release is **.005**. `RELEASE_VERSION.txt` controls tester package numbering;
 the owner and tester badges show the same release number, while the tester ZIP also includes it in
 the filename.
 

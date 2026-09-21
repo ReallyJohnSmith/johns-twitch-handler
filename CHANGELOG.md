@@ -1,5 +1,12 @@
 # John's Twitch Handler release history
 
+## .005 - 2026-09-21
+
+- Added persistent left-side pages for **Pre-stream**, **During stream**, and **After stream** work.
+- Grouped existing cards by stream phase without duplicating controls or losing saved card layouts.
+- Automatically opens During stream when session tracking starts and After stream when it ends.
+- Pauses card-specific browser polling while that card's page is inactive to conserve stream-PC resources.
+
 ## .004 - 2026-09-21
 
 - Widened Preflight tiles and allowed labels and status details to wrap instead of being truncated.
