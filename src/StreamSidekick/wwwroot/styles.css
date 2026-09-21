@@ -103,6 +103,8 @@ h1 { font-size: 17px; letter-spacing: -.02em; }
 .phase-nav-button small { margin-top: 2px; color: var(--muted); font-size: 8px; font-weight: 600; line-height: 1.25; }
 .phase-nav-number { display: grid; place-items: center; width: 28px; height: 28px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel-2); color: var(--muted); font-size: 11px; }
 .phase-nav-button.active .phase-nav-number { border-color: rgba(152,103,255,.55); background: var(--purple); color: white; }
+.phase-nav-customize { padding: 8px 10px; border: 1px dashed var(--line); background: transparent; color: var(--muted); font-size: 9px; }
+.phase-nav-customize:hover { border-color: rgba(152,103,255,.55); color: var(--text); }
 .phase-nav-context { display: grid; gap: 4px; margin-top: 8px; padding: 11px; border: 1px solid var(--line); border-radius: 11px; background: rgba(8,10,15,.42); }
 .phase-nav-context strong { font-size: 10px; }
 .phase-nav-context span { color: var(--muted); font-size: 8px; line-height: 1.45; }
@@ -146,6 +148,17 @@ h2 { font-size: clamp(24px, 4vw, 38px); letter-spacing: -.04em; }
 .preflight-visibility-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 7px; margin: 15px 0; }
 .preflight-visibility-list label { display: flex; align-items: center; gap: 8px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--inner-surface); font-size: 11px; }
 .preflight-visibility-list input { width: auto; accent-color: var(--purple); }
+#page-assignment-dialog { width: min(760px, calc(100vw - 28px)); }
+.page-assignment-dialog { padding: 22px; }
+.page-assignment-head, .page-assignment-row { display: grid; grid-template-columns: minmax(180px, 1fr) repeat(3, 76px); align-items: center; gap: 8px; }
+.page-assignment-head { padding: 0 10px 7px; color: var(--muted); font-size: 9px; font-weight: 800; text-align: center; text-transform: uppercase; }
+.page-assignment-head span:first-child { text-align: left; }
+.page-assignment-list { display: grid; gap: 6px; max-height: min(58vh, 560px); overflow-y: auto; margin: 12px 0 16px; padding-right: 3px; }
+.page-assignment-row { min-height: 44px; padding: 8px 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--inner-surface); }
+.page-assignment-row strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.page-assignment-row label { display: grid; place-items: center; min-height: 28px; border-radius: 7px; cursor: pointer; }
+.page-assignment-row label:hover { background: rgba(152,103,255,.08); }
+.page-assignment-row input { width: 17px; height: 17px; padding: 0; accent-color: var(--purple); }
 input { width: 100%; padding: 11px 13px; border: 1px solid var(--line); border-radius: 10px; outline: none; background: var(--input-surface); color: var(--text); }
 input:focus { border-color: var(--purple); box-shadow: 0 0 0 3px rgba(152,103,255,.1); }
 textarea { width: 100%; resize: vertical; padding: 11px 13px; border: 1px solid var(--line); border-radius: 10px; outline: none; background: var(--input-surface); color: var(--text); }
@@ -627,6 +640,9 @@ fieldset small { color: var(--muted); line-height: 1.5; }
   .phase-nav-number { width: 22px; height: 22px; border-radius: 7px; font-size: 9px; }
   .phase-nav-button strong { font-size: 9px; }
   .phase-nav-button small { display: none; }
+  .phase-nav-customize { grid-column: 1 / -1; }
+  .page-assignment-head, .page-assignment-row { grid-template-columns: minmax(105px, 1fr) repeat(3, 48px); gap: 4px; }
+  .page-assignment-head { font-size: 8px; }
   .session-actions { flex-direction: column; }
   .preflight-strip { grid-column: 1; grid-template-columns: 1fr; }
   .preflight-strip-heading { justify-content: space-between; }

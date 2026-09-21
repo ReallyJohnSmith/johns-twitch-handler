@@ -19,7 +19,9 @@ public sealed record TwitchConfigurationRequest(
 // ClientId is optional for normal users because distributed builds can carry the Handler's public
 // application ID. Keeping the field supports owner/developer overrides without exposing a secret.
 public sealed record TwitchAuthorizationRequest(string? ClientId = null, string? ChannelName = null);
-public sealed record DashboardLayoutRequest(IReadOnlyList<string> PanelOrder);
+public sealed record DashboardLayoutRequest(
+    IReadOnlyList<string> PanelOrder,
+    IReadOnlyDictionary<string, IReadOnlyList<string>>? PanelPages = null);
 
 // A StreamSession is the durable source model written to disk; reports are derived views of it.
 public sealed class StreamSession

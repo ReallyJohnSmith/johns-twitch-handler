@@ -1477,6 +1477,7 @@ const collapsedPanelsStorageKey = "streamsidekick.collapsedPanels";
 const panelSizesStorageKey = "streamsidekick.panelSizes";
 const themeStorageKey = "streamsidekick.theme";
 const workspaceStorageKey = "streamsidekick.workspacePage";
+const panelPagesStorageKey = "streamsidekick.panelPages";
 const defaultPanelOrder = ["stream-health", "clips", "scenes", "audio", "chat", "alerts", "commands", "automations", "raids", "viewers", "streamelements", "tikfinity", "tangia", "ads", "spotify", "performance", "optimizer", "report"];
 let layoutSaveChain = Promise.resolve();
 
@@ -1501,6 +1502,41 @@ function initializeWorkspaceNavigation() {
   $$('[data-workspace-page]').forEach(button => button.addEventListener("click", () => {
     setActiveWorkspace(button.dataset.workspacePage, { focus: true, announce: true });
   }));
+}
+
+function captureDefaultPanelPages() {
+  $$(".dashboard-grid > .panel").forEach(panel => {
+    panel.dataset.defaultPages = panel.dataset.pages || "during";
+  });
+}
+
+function applyPanelPages(savedPages = {}) {
+  $$(".dashboard-grid > .panel").forEach(panel => {
+    const configured = Array.isArray(savedPages?.[panel.dataset.panelId])
+      ? savedPages[panel.dataset.panelId].filter(page => Object.hasOwn(workspacePages, page))
+      : [];
+    panel.dataset.pages = (configured.length ? configured : panel.dataset.defaultPages.split(/\s+/)).join(" ");
+  });
+}
+
+function currentPanelPages() {
+  return Object.fromEntries($$(".dashboard-grid > .panel").map(panel => [
+    panel.dataset.panelId,
+    (panel.dataset.pages || panel.dataset.defaultPages || "during").split(/\s+/).filter(Boolean)
+  ]));
+}
+
+function renderPageAssignmentList() {
+  const list = $("#page-assignment-list");
+  const labels = { pre: "Pre-stream", during: "During stream", after: "After stream" };
+  list.innerHTML = $$(".dashboard-grid > .panel:not([hidden])").map(panel => {
+    const panelName = panel.querySelector(".panel-heading h3")?.textContent || panel.dataset.panelId;
+    const assigned = new Set((panel.dataset.pages || "during").split(/\s+/));
+    const choices = Object.keys(labels).map(page => `<label title="Show ${escapeHtml(panelName)} on ${labels[page]}">
+      <input type="checkbox" data-panel-page-id="${escapeHtml(panel.dataset.panelId)}" data-panel-page="${page}" ${assigned.has(page) ? "checked" : ""} aria-label="${escapeHtml(panelName)} on ${labels[page]}">
+    </label>`).join("");
+    return `<div class="page-assignment-row"><strong title="${escapeHtml(panelName)}">${escapeHtml(panelName)}</strong>${choices}</div>`;
+  }).join("");
 }
 
 function setActiveWorkspace(page, options = {}) {
@@ -1567,13 +1603,16 @@ function applyTheme(theme, persist) {
 
 async function initializeMovablePanels() {
   const grid = $(".dashboard-grid");
-  const saved = await readSavedPanelOrder();
-  if (saved.length && !saved.includes("audio")) {
-    const scenesIndex = saved.indexOf("scenes");
-    saved.splice(scenesIndex >= 0 ? scenesIndex + 1 : saved.length, 0, "audio");
+  captureDefaultPanelPages();
+  const savedLayout = await readSavedDashboardLayout();
+  const savedOrder = savedLayout.panelOrder;
+  if (savedOrder.length && !savedOrder.includes("audio")) {
+    const scenesIndex = savedOrder.indexOf("scenes");
+    savedOrder.splice(scenesIndex >= 0 ? scenesIndex + 1 : savedOrder.length, 0, "audio");
   }
-  applyPanelOrder(saved.length ? saved : defaultPanelOrder);
-  // Migrate browser-only layouts into the durable app store and remove retired card IDs.
+  applyPanelOrder(savedOrder.length ? savedOrder : defaultPanelOrder);
+  applyPanelPages(savedLayout.panelPages);
+  // Migrate browser-only layouts and page assignments into the durable app store.
   savePanelOrder();
 
   let dragged = null;
@@ -1700,11 +1739,13 @@ async function initializeMovablePanels() {
 
   window.addEventListener("pagehide", () => {
     const panelOrder = currentPanelOrder();
+    const panelPages = currentPanelPages();
     localStorage.setItem(layoutStorageKey, JSON.stringify(panelOrder));
+    localStorage.setItem(panelPagesStorageKey, JSON.stringify(panelPages));
     fetch("/api/dashboard-layout", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ panelOrder }),
+      body: JSON.stringify({ panelOrder, panelPages }),
       keepalive: true
     }).catch(() => {});
   });
@@ -1852,13 +1893,29 @@ function readLocalPanelOrder() {
   }
 }
 
-async function readSavedPanelOrder() {
-  const local = readLocalPanelOrder();
+function readLocalPanelPages() {
+  try {
+    const value = JSON.parse(localStorage.getItem(panelPagesStorageKey) || "{}");
+    return value && typeof value === "object" && !Array.isArray(value) ? value : {};
+  } catch {
+    return {};
+  }
+}
+
+async function readSavedDashboardLayout() {
+  const localOrder = readLocalPanelOrder();
+  const localPages = readLocalPanelPages();
   try {
     const saved = await api("/api/dashboard-layout");
-    return Array.isArray(saved?.panelOrder) && saved.panelOrder.length ? saved.panelOrder : local;
+    const panelOrder = Array.isArray(saved?.panelOrder) && saved.panelOrder.length
+      ? saved.panelOrder
+      : localOrder;
+    const panelPages = saved?.panelPages && Object.keys(saved.panelPages).length
+      ? saved.panelPages
+      : localPages;
+    return { panelOrder, panelPages };
   } catch {
-    return local;
+    return { panelOrder: localOrder, panelPages: localPages };
   }
 }
 
@@ -1871,13 +1928,15 @@ function applyPanelOrder(order) {
 
 function savePanelOrder() {
   const order = currentPanelOrder();
+  const panelPages = currentPanelPages();
   localStorage.setItem(layoutStorageKey, JSON.stringify(order));
+  localStorage.setItem(panelPagesStorageKey, JSON.stringify(panelPages));
   // Serialize writes so rapid keyboard/drag moves cannot arrive at the server out of order.
   layoutSaveChain = layoutSaveChain
     .catch(() => {})
     .then(() => api("/api/dashboard-layout", {
       method: "PUT",
-      body: JSON.stringify({ panelOrder: order })
+      body: JSON.stringify({ panelOrder: order, panelPages })
     }))
     .catch(error => console.warn("Dashboard layout could not be saved to the app store.", error));
 }
@@ -2398,6 +2457,33 @@ function openSettings() {
 
 $("#settings-button").addEventListener("click", openSettings);
 $$('[data-open-settings]').forEach(button => button.addEventListener("click", openSettings));
+$("#customize-pages").addEventListener("click", () => {
+  renderPageAssignmentList();
+  $("#page-assignment-dialog").showModal();
+});
+$("#page-assignment-list").addEventListener("change", event => {
+  const checkbox = event.target.closest("[data-panel-page-id]");
+  if (!checkbox) return;
+  const panelId = checkbox.dataset.panelPageId;
+  const panel = document.querySelector(`[data-panel-id="${CSS.escape(panelId)}"]`);
+  if (!panel) return;
+  const checked = $$(`[data-panel-page-id="${CSS.escape(panelId)}"]:checked`);
+  if (!checked.length) {
+    checkbox.checked = true;
+    toast("Every card must stay on at least one page.", true);
+    return;
+  }
+  panel.dataset.pages = checked.map(input => input.dataset.panelPage).join(" ");
+  savePanelOrder();
+  setActiveWorkspace(document.body.dataset.workspacePage || "pre", { persist: false });
+});
+$("#reset-page-assignments").addEventListener("click", () => {
+  applyPanelPages({});
+  renderPageAssignmentList();
+  savePanelOrder();
+  setActiveWorkspace(document.body.dataset.workspacePage || "pre", { persist: false });
+  toast("Recommended page assignments restored.");
+});
 $("#add-manual-preflight").addEventListener("click", addManualPreflightItem);
 $("#manual-preflight-name").addEventListener("keydown", event => {
   if (event.key === "Enter") { event.preventDefault(); addManualPreflightItem(); }
@@ -3117,9 +3203,9 @@ async function boot() {
 }
 async function startDashboard() {
   initializeTheme();
-  initializeWorkspaceNavigation();
   renderGuidedDemo();
   await initializeMovablePanels();
+  initializeWorkspaceNavigation();
   await boot();
   // If the app restarts during an active show, return directly to the live controls.
   if (state.sessionActive) setActiveWorkspace("during", { persist: true });

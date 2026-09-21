@@ -424,10 +424,21 @@ app.MapGet("/api/streamelements/status", () => Results.Ok(streamElements.GetStat
 app.MapGet("/api/tikfinity/status", () => Results.Ok(tikFinity.GetSnapshot()));
 app.MapPut("/api/tikfinity/enabled", (TikFinityEnabledRequest request) =>
     Results.Ok(tikFinity.SetEnabled(request.Enabled)));
-app.MapGet("/api/dashboard-layout", () => Results.Ok(new { panelOrder = dashboardLayout.Read() }));
+app.MapGet("/api/dashboard-layout", () => Results.Ok(new
+{
+    panelOrder = dashboardLayout.Read(),
+    panelPages = dashboardLayout.ReadPages()
+}));
 app.MapPut("/api/dashboard-layout", (DashboardLayoutRequest request) =>
 {
-    try { return Results.Ok(new { panelOrder = dashboardLayout.Save(request.PanelOrder) }); }
+    try
+    {
+        var panelOrder = dashboardLayout.Save(request.PanelOrder);
+        var panelPages = request.PanelPages is null
+            ? dashboardLayout.ReadPages()
+            : dashboardLayout.SavePages(request.PanelPages);
+        return Results.Ok(new { panelOrder, panelPages });
+    }
     catch (Exception exception) { return Results.BadRequest(new { error = exception.Message }); }
 });
 

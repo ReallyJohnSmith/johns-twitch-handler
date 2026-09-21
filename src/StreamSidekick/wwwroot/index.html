@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0d13">
   <title>John's Twitch Handler</title>
-  <link rel="stylesheet" href="styles.css?v=005">
+  <link rel="stylesheet" href="styles.css?v=006">
 </head>
 <body>
   <!-- A real fixed element is used instead of a body pseudo-element so browser compositors cannot clip it. -->
@@ -58,6 +58,7 @@
           <span class="phase-nav-number">3</span>
           <span><strong>After stream</strong><small>Review and publish</small></span>
         </button>
+        <button class="phase-nav-customize" id="customize-pages" type="button">Customize pages</button>
         <div class="phase-nav-context" aria-live="polite">
           <strong id="workspace-page-title">Pre-stream</strong>
           <span id="workspace-page-summary">Complete the checklist and confirm your integrations before going live.</span>
@@ -737,6 +738,24 @@
     </form>
   </dialog>
 
+  <dialog id="page-assignment-dialog">
+    <form method="dialog" class="settings-card page-assignment-dialog">
+      <div class="panel-heading">
+        <div><span class="eyebrow">YOUR WORKSPACE</span><h3>Choose which cards appear on each page</h3></div>
+        <button class="icon-button" value="cancel" aria-label="Close page customization">×</button>
+      </div>
+      <p class="helper">A card may appear on more than one page. Every card must remain assigned to at least one page.</p>
+      <div class="page-assignment-head" aria-hidden="true">
+        <span>Card</span><span>1 · Pre</span><span>2 · During</span><span>3 · After</span>
+      </div>
+      <div id="page-assignment-list" class="page-assignment-list"></div>
+      <div class="settings-button-row">
+        <button id="reset-page-assignments" type="button" class="secondary">Restore recommended pages</button>
+        <button value="close" class="primary">Done</button>
+      </div>
+    </form>
+  </dialog>
+
   <!-- Passwords and access tokens are submitted to the local server but never stored by the browser. -->
   <dialog id="settings-dialog">
     <form method="dialog" class="settings-card">
@@ -829,6 +848,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=005"></script>
+  <script src="app.js?v=006"></script>
 </body>
 </html>

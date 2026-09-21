@@ -1,5 +1,12 @@
 # John's Twitch Handler release history
 
+## .006 - 2026-09-21
+
+- Added **Customize pages** so users choose which cards appear on Pre-stream, During stream, and After stream.
+- Allows a card on multiple pages while preventing it from being removed from every page accidentally.
+- Saves page assignments locally alongside the durable dashboard card order.
+- Added one-click restoration of the recommended page assignments.
+
 ## .005 - 2026-09-21
 
 - Added persistent left-side pages for **Pre-stream**, **During stream**, and **After stream** work.
