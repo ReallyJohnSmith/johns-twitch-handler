@@ -7,7 +7,7 @@ Sharing the project with a regular ChatGPT conversation? Upload
 
 The owner and tester builds use the same approved feature set. Each installation keeps its own connection data locally; credentials are never packaged or synchronized. See `RELEASE_WORKFLOW.md` for the release rules.
 
-The current approved release is **.008**. `RELEASE_VERSION.txt` controls tester package numbering;
+The current approved release is **.009**. `RELEASE_VERSION.txt` controls tester package numbering;
 the owner and tester badges show the same release number, while the tester ZIP also includes it in
 the filename.
 
@@ -25,7 +25,8 @@ Developer references: [architecture](docs/ARCHITECTURE.md), [contributing rules]
 - Embeds the channel's Twitch chat directly in the dashboard.
 - Receives follows, subscriptions, gift subs, resubs, cheers, raids, channel-point rewards, and live/offline alerts through Twitch EventSub.
 - Connects to Spotify with OAuth PKCE, searches tracks, controls the active Spotify queue, and turns a named Twitch Channel Point reward into moderated or automatic song requests.
-- Lets every dashboard card be rearranged by dragging its header or using four-way Alt+Arrow shortcuts, then remembers the layout.
+- Lets every dashboard panel be rearranged by dragging its header or using four-way Alt+Arrow shortcuts, then remembers the layout.
+- Adds OBS-style panel docking: **Float** undocks a panel inside the Handler window, **Dock** returns it, and dropping one panel over the center of another stacks them as selectable tabs. Positions, sizes, and tab stacks stay local to that browser.
 - Lets unused cards collapse to a compact header with the `−` button and remembers which cards are collapsed in that browser; `+` expands them again.
 - Inventories Retail and Classic WoW addons, shows SavedVariables growth, and safely enables/disables addons per character while WoW is closed.
 - Bundles a lightweight in-game profiler companion that exports Blizzard's addon execution metrics after `/ssp` and `/reload`.

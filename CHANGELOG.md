@@ -1,5 +1,13 @@
 # John's Twitch Handler release history
 
+## .009 - 2026-09-21
+
+- Reworked the During page around a fixed broadcast command strip for the current OBS scene, microphone state, output state, replay saving, and chat access.
+- Changed the default Advanced layout hierarchy so scenes, audio, chat, alerts, clips, and ads take priority while optional integrations remain compact.
+- Preserved genuinely customized panel orders while migrating the untouched older default to the broadcast-first arrangement.
+- Made each Simple-mode personal checklist reminder a full-row clickable control with a clear checked state.
+- Added OBS-style panel behavior: panels can float, move, resize, redock, and stack behind one another as tabs, with the arrangement retained locally.
+
 ## .008 - 2026-09-21
 
 - Added personal Preflight reminders, including **Get Coffee**, directly to Simple mode.

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0d13">
   <title>John's Twitch Handler</title>
-  <link rel="stylesheet" href="styles.css?v=008">
+  <link rel="stylesheet" href="styles.css?v=009">
 </head>
 <body data-user-mode="simple">
   <!-- A real fixed element is used instead of a body pseudo-element so browser compositors cannot clip it. -->
@@ -28,7 +28,7 @@
           <button type="button" class="active" data-user-mode="simple" aria-pressed="true">Simple</button>
           <button type="button" data-user-mode="advanced" aria-pressed="false">Advanced</button>
         </div>
-        <span class="layout-hint advanced-only">Drag to move · corner to resize · −/+ to collapse</span>
+        <span class="layout-hint advanced-only">Drag to dock · drop in the center to tab · Float to undock</span>
         <label class="theme-picker advanced-only" title="Choose a dashboard color theme">
           <span>Theme</span>
           <select id="theme-select" aria-label="Dashboard color theme">
@@ -77,6 +77,25 @@
         <time id="live-status-time">NOT TRACKING</time>
         <span id="live-status-detail">Checking OBS, system load, and internet.</span>
         <button class="secondary" id="live-status-fix" type="button" hidden>Fix It</button>
+      </section>
+      <!-- This fixed command strip keeps the controls needed during a show above the movable tools. -->
+      <section class="broadcast-command-strip" id="broadcast-command-strip" aria-label="Live broadcast controls" hidden>
+        <button class="broadcast-readout" type="button" data-scroll-panel="scenes" title="Open OBS scene controls">
+          <small>CURRENT SCENE</small>
+          <strong id="console-scene">OBS not connected</strong>
+        </button>
+        <button class="broadcast-readout" type="button" data-scroll-panel="audio" title="Open the OBS audio mixer">
+          <small>MICROPHONE</small>
+          <strong id="console-microphone">Checking</strong>
+        </button>
+        <div class="broadcast-readout" aria-live="polite">
+          <small>OUTPUT</small>
+          <strong id="console-output">Offline</strong>
+        </div>
+        <div class="broadcast-command-actions">
+          <button class="secondary" type="button" data-console-action="replay">Save replay</button>
+          <button class="secondary" type="button" data-scroll-panel="chat">Open chat</button>
+        </div>
       </section>
       <!-- Session tracking is separate from OBS going live; it defines the reporting time window. -->
       <section class="hero-card advanced-detail">
@@ -943,6 +962,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=008"></script>
+  <script src="app.js?v=009"></script>
 </body>
 </html>
