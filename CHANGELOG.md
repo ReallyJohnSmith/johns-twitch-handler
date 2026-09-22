@@ -1,5 +1,11 @@
 # John's Twitch Handler release history
 
+## .010 - 2026-09-21
+
+- Added a clear green **STACKED** confirmation after panels successfully become tabs.
+- Prevented floating or unavailable panels from showing a misleading stack target.
+- Changed the scene, microphone, and output readouts into neutral status displays, with separate plainly labeled **Scenes**, **Audio**, and **Chat** action buttons.
+
 ## .009 - 2026-09-21
 
 - Reworked the During page around a fixed broadcast command strip for the current OBS scene, microphone state, output state, replay saving, and chat access.

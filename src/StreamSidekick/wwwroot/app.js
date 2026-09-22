@@ -2174,11 +2174,19 @@ async function initializeMovablePanels() {
     event.dataTransfer.dropEffect = "move";
     const target = event.target.closest(".panel");
     if (!target || target === dragged || !grid.contains(target)) return;
+    // Floating panels are intentionally outside the dock grid. They must be docked before another
+    // panel can be placed beside or behind them, otherwise the result would look successful but
+    // have no visible tab stack.
+    if (target.classList.contains("floating")) {
+      pendingTabTarget = null;
+      clearDropIndicators();
+      return;
+    }
     const rect = target.getBoundingClientRect();
     const overTabZone = event.clientX > rect.left + rect.width * .28
       && event.clientX < rect.right - rect.width * .28
       && event.clientY > rect.top + Math.min(76, rect.height * .35);
-    if (overTabZone) {
+    if (overTabZone && canStackPanels(dragged, target)) {
       clearDropIndicators();
       pendingTabTarget = target;
       target.classList.add("drop-stack");
@@ -2378,10 +2386,20 @@ function removePanelFromTabGroup(panelId) {
   }
 }
 
+function canStackPanels(source, target) {
+  if (!source?.dataset.panelId || !target?.dataset.panelId || source === target) return false;
+  if (source.classList.contains("floating") || target.classList.contains("floating")) return false;
+  if (source.classList.contains("workspace-hidden") || target.classList.contains("workspace-hidden")) return false;
+  const page = document.body.dataset.workspacePage || "pre";
+  const sourcePages = (source.dataset.pages || "during").split(/\s+/);
+  const targetPages = (target.dataset.pages || "during").split(/\s+/);
+  return sourcePages.includes(page) && targetPages.includes(page);
+}
+
 function stackPanelsAsTabs(source, target) {
+  if (!canStackPanels(source, target)) return false;
   const sourceId = source.dataset.panelId;
   const targetId = target.dataset.panelId;
-  if (!sourceId || !targetId || sourceId === targetId) return;
 
   // A panel belongs to one tab stack at a time. Pulling it into a new stack leaves any remaining
   // panels in their existing group and keeps their selected tab intact.
@@ -2401,7 +2419,18 @@ function stackPanelsAsTabs(source, target) {
   target.after(source);
   renderPanelTabGroups();
   savePanelTabGroups();
-  toast("Panels stacked as tabs. Select a tab to bring it forward.");
+  flashSuccessfulStack(source);
+  toast("Stack created. Use the tabs at the top to switch panels.");
+  return true;
+}
+
+function flashSuccessfulStack(panel) {
+  panel.classList.remove("stack-confirmed");
+  // Restart the short confirmation animation even when panels are stacked repeatedly.
+  window.requestAnimationFrame(() => {
+    panel.classList.add("stack-confirmed");
+    window.setTimeout(() => panel.classList.remove("stack-confirmed"), 1800);
+  });
 }
 
 function renderPanelTabGroups() {

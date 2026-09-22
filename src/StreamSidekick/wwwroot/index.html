@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0d13">
   <title>John's Twitch Handler</title>
-  <link rel="stylesheet" href="styles.css?v=009">
+  <link rel="stylesheet" href="styles.css?v=010">
 </head>
 <body data-user-mode="simple">
   <!-- A real fixed element is used instead of a body pseudo-element so browser compositors cannot clip it. -->
@@ -80,21 +80,23 @@
       </section>
       <!-- This fixed command strip keeps the controls needed during a show above the movable tools. -->
       <section class="broadcast-command-strip" id="broadcast-command-strip" aria-label="Live broadcast controls" hidden>
-        <button class="broadcast-readout" type="button" data-scroll-panel="scenes" title="Open OBS scene controls">
+        <div class="broadcast-readout">
           <small>CURRENT SCENE</small>
           <strong id="console-scene">OBS not connected</strong>
-        </button>
-        <button class="broadcast-readout" type="button" data-scroll-panel="audio" title="Open the OBS audio mixer">
+        </div>
+        <div class="broadcast-readout">
           <small>MICROPHONE</small>
           <strong id="console-microphone">Checking</strong>
-        </button>
+        </div>
         <div class="broadcast-readout" aria-live="polite">
           <small>OUTPUT</small>
           <strong id="console-output">Offline</strong>
         </div>
         <div class="broadcast-command-actions">
           <button class="secondary" type="button" data-console-action="replay">Save replay</button>
-          <button class="secondary" type="button" data-scroll-panel="chat">Open chat</button>
+          <button class="secondary" type="button" data-scroll-panel="scenes">Scenes</button>
+          <button class="secondary" type="button" data-scroll-panel="audio">Audio</button>
+          <button class="secondary" type="button" data-scroll-panel="chat">Chat</button>
         </div>
       </section>
       <!-- Session tracking is separate from OBS going live; it defines the reporting time window. -->
@@ -962,6 +964,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=009"></script>
+  <script src="app.js?v=010"></script>
 </body>
 </html>

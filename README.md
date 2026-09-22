@@ -7,7 +7,7 @@ Sharing the project with a regular ChatGPT conversation? Upload
 
 The owner and tester builds use the same approved feature set. Each installation keeps its own connection data locally; credentials are never packaged or synchronized. See `RELEASE_WORKFLOW.md` for the release rules.
 
-The current approved release is **.009**. `RELEASE_VERSION.txt` controls tester package numbering;
+The current approved release is **.010**. `RELEASE_VERSION.txt` controls tester package numbering;
 the owner and tester badges show the same release number, while the tester ZIP also includes it in
 the filename.
 
