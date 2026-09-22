@@ -1,5 +1,12 @@
 # John's Twitch Handler release history
 
+## .011 - 2026-09-22
+
+- Made panel-heading-to-panel-heading drops create tab stacks, matching the natural OBS gesture shown in John's recording.
+- Made tab labels draggable so pulling a tab away separates it; releasing outside the dashboard turns it into a floating panel.
+- Added an explicit **Unstack** button for users who prefer a predictable control instead of dragging.
+- Added green **STACKED** and blue **UNSTACKED** confirmations that appear only after the layout actually changes.
+
 ## .010 - 2026-09-21
 
 - Added a clear green **STACKED** confirmation after panels successfully become tabs.

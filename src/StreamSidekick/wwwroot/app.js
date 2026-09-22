@@ -1542,6 +1542,8 @@ const defaultPanelOrder = ["stream-health", "scenes", "audio", "chat", "alerts",
 let layoutSaveChain = Promise.resolve();
 let panelTabGroups = [];
 let floatingPanelZ = 200;
+let draggedPanel = null;
+let pendingTabTarget = null;
 
 const workspacePages = {
   pre: {
@@ -2055,8 +2057,6 @@ async function initializeMovablePanels() {
   // Migrate browser-only layouts and page assignments into the durable app store.
   savePanelOrder();
 
-  let dragged = null;
-  let pendingTabTarget = null;
   const collapsedPanels = readCollapsedPanels();
   const panelSizes = readPanelSizes();
   const floatingPanels = readFloatingPanels();
@@ -2144,36 +2144,43 @@ async function initializeMovablePanels() {
     });
 
     panel.addEventListener("dragstart", event => {
+      if (event.target.closest("[data-panel-tab]")) return;
       if (panel.dataset.dragArmed !== "true") {
         event.preventDefault();
         return;
       }
-      dragged = panel;
+      draggedPanel = panel;
       panel.classList.add("dragging");
       panel.setAttribute("aria-grabbed", "true");
       event.dataTransfer.effectAllowed = "move";
       event.dataTransfer.setData("text/plain", panel.dataset.panelId);
     });
 
-    panel.addEventListener("dragend", () => {
+    panel.addEventListener("dragend", event => {
+      if (event.target.closest("[data-panel-tab]")) return;
       panel.classList.remove("dragging");
       panel.setAttribute("aria-grabbed", "false");
       panel.dataset.dragArmed = "false";
       pendingTabTarget = null;
       clearDropIndicators();
-      if (dragged) savePanelOrder();
-      dragged = null;
+      if (draggedPanel) savePanelOrder();
+      draggedPanel = null;
     });
   });
 
   initializePanelTabGroups();
 
   grid.addEventListener("dragover", event => {
-    if (!dragged) return;
+    if (!draggedPanel) return;
     event.preventDefault();
     event.dataTransfer.dropEffect = "move";
     const target = event.target.closest(".panel");
-    if (!target || target === dragged || !grid.contains(target)) return;
+    if (!target || !grid.contains(target)) {
+      pendingTabTarget = null;
+      clearDropIndicators();
+      return;
+    }
+    if (target === draggedPanel) return;
     // Floating panels are intentionally outside the dock grid. They must be docked before another
     // panel can be placed beside or behind them, otherwise the result would look successful but
     // have no visible tab stack.
@@ -2183,10 +2190,13 @@ async function initializeMovablePanels() {
       return;
     }
     const rect = target.getBoundingClientRect();
-    const overTabZone = event.clientX > rect.left + rect.width * .28
-      && event.clientX < rect.right - rect.width * .28
-      && event.clientY > rect.top + Math.min(76, rect.height * .35);
-    if (overTabZone && canStackPanels(dragged, target)) {
+    // Heading-to-heading is the natural OBS gesture, so nearly the entire panel is a stack target.
+    // Only the thin outer edge remains reserved for ordinary before/after rearranging.
+    const overTabZone = event.clientX > rect.left + Math.min(44, rect.width * .12)
+      && event.clientX < rect.right - Math.min(44, rect.width * .12)
+      && event.clientY > rect.top + 12
+      && event.clientY < rect.bottom - 12;
+    if (overTabZone && canStackPanels(draggedPanel, target)) {
       clearDropIndicators();
       pendingTabTarget = target;
       target.classList.add("drop-stack");
@@ -2196,15 +2206,16 @@ async function initializeMovablePanels() {
     const after = event.clientY > rect.top + rect.height / 2;
     clearDropIndicators();
     target.classList.add(after ? "drop-after" : "drop-before");
-    if (after) target.after(dragged);
-    else target.before(dragged);
+    if (after) target.after(draggedPanel);
+    else target.before(draggedPanel);
   });
 
   grid.addEventListener("drop", event => {
-    if (!dragged) return;
+    if (!draggedPanel) return;
     event.preventDefault();
-    if (pendingTabTarget && pendingTabTarget !== dragged) {
-      stackPanelsAsTabs(dragged, pendingTabTarget);
+    const panel = draggedPanel;
+    if (pendingTabTarget && pendingTabTarget !== panel) {
+      stackPanelsAsTabs(panel, pendingTabTarget);
       pendingTabTarget = null;
     }
     savePanelOrder();
@@ -2390,10 +2401,87 @@ function canStackPanels(source, target) {
   if (!source?.dataset.panelId || !target?.dataset.panelId || source === target) return false;
   if (source.classList.contains("floating") || target.classList.contains("floating")) return false;
   if (source.classList.contains("workspace-hidden") || target.classList.contains("workspace-hidden")) return false;
+  if (panelTabGroups.some(group => group.panels.includes(source.dataset.panelId) && group.panels.includes(target.dataset.panelId))) return false;
   const page = document.body.dataset.workspacePage || "pre";
   const sourcePages = (source.dataset.pages || "during").split(/\s+/);
   const targetPages = (target.dataset.pages || "during").split(/\s+/);
   return sourcePages.includes(page) && targetPages.includes(page);
+}
+
+function detachPanelFromTabStack(panel, floatAfterDetach) {
+  const panelId = panel?.dataset.panelId;
+  if (!panelId || !panelTabGroups.some(group => group.panels.includes(panelId))) return false;
+  removePanelFromTabGroup(panelId);
+  if (floatAfterDetach) {
+    const heading = panel.querySelector(".panel-heading");
+    setPanelFloating(
+      panel,
+      true,
+      heading.querySelector(".panel-float-button"),
+      heading.querySelector("h3")?.textContent || "dashboard panel"
+    );
+    saveFloatingPanels();
+  }
+  flashPanelConfirmation(panel, "unstack-confirmed");
+  savePanelOrder();
+  toast(floatAfterDetach ? "Tab unstacked into a floating panel." : "Tab unstacked into its own panel.");
+  return true;
+}
+
+function addTabPullGesture(button, panelId) {
+  button.addEventListener("pointerdown", downEvent => {
+    if (downEvent.button !== 0) return;
+    const panel = document.querySelector(`[data-panel-id="${CSS.escape(panelId)}"]`);
+    if (!panel || !panelTabGroups.some(group => group.panels.includes(panelId))) return;
+    const grid = $(".dashboard-grid");
+    const pull = { pointerId: downEvent.pointerId, x: downEvent.clientX, y: downEvent.clientY, moved: false, ghost: null };
+    button.setPointerCapture(downEvent.pointerId);
+
+    const move = event => {
+      if (event.pointerId !== pull.pointerId) return;
+      if (!pull.moved && Math.hypot(event.clientX - pull.x, event.clientY - pull.y) < 10) return;
+      event.preventDefault();
+      pull.moved = true;
+      if (!pull.ghost) {
+        pull.ghost = document.createElement("div");
+        pull.ghost.className = "panel-tab-drag-ghost";
+        pull.ghost.textContent = button.textContent;
+        document.body.append(pull.ghost);
+      }
+      pull.ghost.style.left = `${event.clientX + 12}px`;
+      pull.ghost.style.top = `${event.clientY + 12}px`;
+      const hit = document.elementFromPoint(event.clientX, event.clientY);
+      const target = hit?.closest(".panel");
+      clearDropIndicators();
+      if (target && canStackPanels(panel, target)) target.classList.add("drop-stack");
+      else grid.classList.add("drop-unstack");
+    };
+
+    const cleanup = () => {
+      button.removeEventListener("pointermove", move);
+      button.removeEventListener("pointerup", finish);
+      button.removeEventListener("pointercancel", cancel);
+      pull.ghost?.remove();
+      clearDropIndicators();
+    };
+    const finish = event => {
+      if (event.pointerId !== pull.pointerId) return;
+      const hit = document.elementFromPoint(event.clientX, event.clientY);
+      const target = hit?.closest(".panel");
+      const floatAfterDetach = !grid.contains(hit);
+      cleanup();
+      if (!pull.moved) return;
+      event.preventDefault();
+      if (target && canStackPanels(panel, target)) stackPanelsAsTabs(panel, target);
+      else detachPanelFromTabStack(panel, floatAfterDetach);
+    };
+    const cancel = event => {
+      if (event.pointerId === pull.pointerId) cleanup();
+    };
+    button.addEventListener("pointermove", move);
+    button.addEventListener("pointerup", finish);
+    button.addEventListener("pointercancel", cancel);
+  });
 }
 
 function stackPanelsAsTabs(source, target) {
@@ -2419,17 +2507,17 @@ function stackPanelsAsTabs(source, target) {
   target.after(source);
   renderPanelTabGroups();
   savePanelTabGroups();
-  flashSuccessfulStack(source);
+  flashPanelConfirmation(source, "stack-confirmed");
   toast("Stack created. Use the tabs at the top to switch panels.");
   return true;
 }
 
-function flashSuccessfulStack(panel) {
-  panel.classList.remove("stack-confirmed");
+function flashPanelConfirmation(panel, className) {
+  panel.classList.remove("stack-confirmed", "unstack-confirmed");
   // Restart the short confirmation animation even when panels are stacked repeatedly.
   window.requestAnimationFrame(() => {
-    panel.classList.add("stack-confirmed");
-    window.setTimeout(() => panel.classList.remove("stack-confirmed"), 1800);
+    panel.classList.add(className);
+    window.setTimeout(() => panel.classList.remove(className), 1800);
   });
 }
 
@@ -2458,15 +2546,22 @@ function renderPanelTabGroups() {
     bar.innerHTML = visible.map(panel => {
       const name = panel.querySelector(".panel-heading h3")?.textContent || panel.dataset.panelId;
       const selected = panel === active;
-      return `<button type="button" role="tab" data-panel-tab="${escapeHtml(panel.dataset.panelId)}" aria-selected="${selected}" class="${selected ? "active" : ""}">${escapeHtml(name)}</button>`;
-    }).join("");
+      return `<button type="button" role="tab" data-panel-tab="${escapeHtml(panel.dataset.panelId)}" aria-selected="${selected}" class="${selected ? "active" : ""}" title="Select this tab, or drag it away to unstack it">${escapeHtml(name)}</button>`;
+    }).join("") + `<button type="button" class="panel-unstack-button" data-unstack-panel="${escapeHtml(active.dataset.panelId)}" title="Move this tab back into its own panel">Unstack</button>`;
     bar.addEventListener("click", event => {
+      const unstack = event.target.closest("[data-unstack-panel]");
+      if (unstack) {
+        const panel = document.querySelector(`[data-panel-id="${CSS.escape(unstack.dataset.unstackPanel)}"]`);
+        detachPanelFromTabStack(panel, false);
+        return;
+      }
       const button = event.target.closest("[data-panel-tab]");
       if (!button) return;
       group.active = button.dataset.panelTab;
       renderPanelTabGroups();
       savePanelTabGroups();
     });
+    bar.querySelectorAll("[data-panel-tab]").forEach(button => addTabPullGesture(button, button.dataset.panelTab));
     active.prepend(bar);
   });
 }
@@ -2668,6 +2763,7 @@ function currentPanelOrder() {
 
 function clearDropIndicators() {
   $$(".dashboard-grid > .panel").forEach(panel => panel.classList.remove("drop-before", "drop-after", "drop-stack"));
+  $(".dashboard-grid")?.classList.remove("drop-unstack");
 }
 
 async function loadWowAddons(refresh = false) {

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0d13">
   <title>John's Twitch Handler</title>
-  <link rel="stylesheet" href="styles.css?v=010">
+  <link rel="stylesheet" href="styles.css?v=011">
 </head>
 <body data-user-mode="simple">
   <!-- A real fixed element is used instead of a body pseudo-element so browser compositors cannot clip it. -->
@@ -28,7 +28,7 @@
           <button type="button" class="active" data-user-mode="simple" aria-pressed="true">Simple</button>
           <button type="button" data-user-mode="advanced" aria-pressed="false">Advanced</button>
         </div>
-        <span class="layout-hint advanced-only">Drag to dock · drop in the center to tab · Float to undock</span>
+        <span class="layout-hint advanced-only">Panel onto panel stacks · pull a tab away to unstack · Float undocks</span>
         <label class="theme-picker advanced-only" title="Choose a dashboard color theme">
           <span>Theme</span>
           <select id="theme-select" aria-label="Dashboard color theme">
@@ -964,6 +964,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=010"></script>
+  <script src="app.js?v=011"></script>
 </body>
 </html>
