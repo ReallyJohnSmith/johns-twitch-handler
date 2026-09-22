@@ -1,5 +1,11 @@
 # John's Twitch Handler release history
 
+## .014 - 2026-09-22
+
+- Replaced the unreliable native Look and Theme dropdowns with one clear **Appearance** button.
+- Added large, direct-click choices for Broadcast Console, Vibe Dashboard, and all five color themes.
+- Added persistent active-state checkmarks so a click always gives visible confirmation.
+
 ## .013 - 2026-09-22
 
 - Added a persistent **Look** selector with **Broadcast Console** and **Vibe Dashboard** choices.

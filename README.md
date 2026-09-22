@@ -7,7 +7,7 @@ Sharing the project with a regular ChatGPT conversation? Upload
 
 The owner and tester builds use the same approved feature set. Each installation keeps its own connection data locally; credentials are never packaged or synchronized. See `RELEASE_WORKFLOW.md` for the release rules.
 
-The current approved release is **.013**. `RELEASE_VERSION.txt` controls tester package numbering;
+The current approved release is **.014**. `RELEASE_VERSION.txt` controls tester package numbering;
 the owner and tester badges show the same release number, while the tester Setup executable also
 includes it in the filename.
 
@@ -28,7 +28,7 @@ Developer references: [architecture](docs/ARCHITECTURE.md), [contributing rules]
 - Lets every dashboard panel be rearranged by dragging its header or using four-way Alt+Arrow shortcuts, then remembers the layout.
 - Adds OBS-style panel docking: **Float** undocks a panel inside the Handler window, **Dock** returns it, and dropping one panel over another stacks them as selectable tabs. Drag a tab away or press **Unstack** to separate it again. Positions, sizes, and tab stacks stay local to that browser.
 - Lets users press **Add to Simple** on an Advanced tool such as Spotify song requests. Only chosen tools appear in Simple mode, using the same live controls and settings as Advanced mode.
-- Offers a saved **Look** switch between the compact **Broadcast Console** and the original rounded **Vibe Dashboard**. This changes presentation only; both appearances use the same features, settings, and live connections.
+- Offers an **Appearance** panel with direct, full-size buttons for the compact **Broadcast Console**, the original rounded **Vibe Dashboard**, and all five color themes. This changes presentation only; every appearance uses the same features, settings, and live connections.
 - Lets unused cards collapse to a compact header with the `−` button and remembers which cards are collapsed in that browser; `+` expands them again.
 - Inventories Retail and Classic WoW addons, shows SavedVariables growth, and safely enables/disables addons per character while WoW is closed.
 - Bundles a lightweight in-game profiler companion that exports Blizzard's addon execution metrics after `/ssp` and `/reload`.

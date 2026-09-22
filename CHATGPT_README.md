@@ -10,7 +10,7 @@ John's Twitch Handler is a lightweight Windows streaming companion created prima
 use on his own Twitch channel. John is the primary user and tester. The product should remain useful
 to him personally while also being simple enough for nontechnical testers to download and open.
 
-Current approved version: **.013**
+Current approved version: **.014**
 
 Source repository: <https://github.com/ReallyJohnSmith/johns-twitch-handler>
 
@@ -113,7 +113,7 @@ opens After stream.
 - Five dashboard color themes.
 - Movable, resizable, collapsible, floatable, and redockable panels with saved layouts, keyboard movement, and OBS-style tab stacks.
 - Per-panel **Add to Simple** controls so users can expose selected Advanced tools without enabling the full Advanced interface.
-- A saved visual-style switch between the current flat **Broadcast Console** and the earlier rounded **Vibe Dashboard**; it must never fork application behavior or integration state.
+- A saved **Appearance** panel with direct buttons for the current flat **Broadcast Console**, the earlier rounded **Vibe Dashboard**, and five color themes; it must never fork application behavior or integration state.
 
 ### Live stream operation
 

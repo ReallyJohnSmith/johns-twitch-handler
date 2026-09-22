@@ -2090,17 +2090,48 @@ const themes = {
   ember: "#120a08",
   slate: "#0b0e12"
 };
+const themeLabels = {
+  midnight: "Midnight",
+  ocean: "Ocean",
+  forest: "Forest",
+  ember: "Ember",
+  slate: "Slate"
+};
+
+function renderAppearanceControls() {
+  const visualStyle = document.body.dataset.visualStyle === "vibe" ? "vibe" : "broadcast";
+  const selectedTheme = Object.hasOwn(themes, document.documentElement.dataset.theme)
+    ? document.documentElement.dataset.theme
+    : "midnight";
+  $("#appearance-button").textContent = `Appearance · ${visualStyle === "vibe" ? "Vibe" : "Broadcast"}`;
+  $$('[data-visual-style-option]').forEach(button => {
+    const active = button.dataset.visualStyleOption === visualStyle;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  $$('[data-theme-option]').forEach(button => {
+    const active = button.dataset.themeOption === selectedTheme;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+}
 
 function initializeVisualStyle() {
   const saved = localStorage.getItem(visualStyleStorageKey);
   applyVisualStyle(saved === "vibe" ? "vibe" : "broadcast", false);
-  $("#visual-style-select").addEventListener("change", event => applyVisualStyle(event.target.value, true));
+  $("#appearance-button").addEventListener("click", () => {
+    renderAppearanceControls();
+    $("#appearance-dialog").showModal();
+  });
+  $$('[data-visual-style-option]').forEach(button => button.addEventListener("click", () => {
+    applyVisualStyle(button.dataset.visualStyleOption, true);
+  }));
 }
 
 function applyVisualStyle(style, persist) {
   const selected = style === "vibe" ? "vibe" : "broadcast";
   document.body.dataset.visualStyle = selected;
-  $("#visual-style-select").value = selected;
+  renderAppearanceControls();
   if (persist) {
     localStorage.setItem(visualStyleStorageKey, selected);
     toast(selected === "vibe" ? "Vibe Dashboard selected." : "Broadcast Console selected.");
@@ -2110,17 +2141,19 @@ function applyVisualStyle(style, persist) {
 function initializeTheme() {
   const saved = localStorage.getItem(themeStorageKey);
   applyTheme(Object.hasOwn(themes, saved) ? saved : "midnight", false);
-  $("#theme-select").addEventListener("change", event => applyTheme(event.target.value, true));
+  $$('[data-theme-option]').forEach(button => button.addEventListener("click", () => {
+    applyTheme(button.dataset.themeOption, true);
+  }));
 }
 
 function applyTheme(theme, persist) {
   const selected = Object.hasOwn(themes, theme) ? theme : "midnight";
   document.documentElement.dataset.theme = selected;
-  $("#theme-select").value = selected;
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", themes[selected]);
+  renderAppearanceControls();
   if (persist) {
     localStorage.setItem(themeStorageKey, selected);
-    toast(`${$("#theme-select").selectedOptions[0].textContent} theme selected.`);
+    toast(`${themeLabels[selected]} theme selected.`);
   }
 }
 

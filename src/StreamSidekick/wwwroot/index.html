@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0d13">
   <title>John's Twitch Handler</title>
-  <link rel="stylesheet" href="styles.css?v=013">
+  <link rel="stylesheet" href="styles.css?v=014">
 </head>
 <body data-user-mode="simple" data-visual-style="broadcast">
   <!-- A real fixed element is used instead of a body pseudo-element so browser compositors cannot clip it. -->
@@ -28,24 +28,8 @@
           <button type="button" class="active" data-user-mode="simple" aria-pressed="true">Simple</button>
           <button type="button" data-user-mode="advanced" aria-pressed="false">Advanced</button>
         </div>
-        <label class="visual-style-picker" title="Switch between the compact broadcast console and the original dashboard appearance">
-          <span>Look</span>
-          <select id="visual-style-select" aria-label="Dashboard visual style">
-            <option value="broadcast">Broadcast Console</option>
-            <option value="vibe">Vibe Dashboard</option>
-          </select>
-        </label>
+        <button class="appearance-button" id="appearance-button" type="button" aria-haspopup="dialog">Appearance</button>
         <span class="layout-hint advanced-only">Panel onto panel stacks · pull a tab away to unstack · Float undocks</span>
-        <label class="theme-picker advanced-only" title="Choose a dashboard color theme">
-          <span>Theme</span>
-          <select id="theme-select" aria-label="Dashboard color theme">
-            <option value="midnight">Midnight</option>
-            <option value="ocean">Ocean</option>
-            <option value="forest">Forest</option>
-            <option value="ember">Ember</option>
-            <option value="slate">Slate</option>
-          </select>
-        </label>
         <span id="obs-pill" class="pill offline advanced-only"><i></i> OBS offline</span>
         <span id="session-pill" class="pill neutral advanced-only"><i></i> No session</span>
         <button class="icon-button advanced-only" id="reset-layout" aria-label="Reset dashboard layout" title="Reset dashboard layout">↺</button>
@@ -880,6 +864,38 @@
     </form>
   </dialog>
 
+  <dialog id="appearance-dialog">
+    <form method="dialog" class="settings-card compact-dialog appearance-dialog-card">
+      <div class="panel-heading">
+        <div><span class="eyebrow">APPEARANCE</span><h3>Choose how the Handler looks</h3></div>
+        <button class="icon-button" value="cancel" aria-label="Close appearance settings">×</button>
+      </div>
+      <p class="helper">These choices change only the presentation. Your panels, connections, and settings stay exactly the same.</p>
+      <section class="appearance-section" aria-labelledby="appearance-layout-title">
+        <h4 id="appearance-layout-title">Layout style</h4>
+        <div class="appearance-layout-options">
+          <button type="button" class="appearance-choice-button" data-visual-style-option="broadcast">
+            <strong>Broadcast Console</strong><small>Compact, flat, and OBS-inspired</small><span aria-hidden="true">✓</span>
+          </button>
+          <button type="button" class="appearance-choice-button" data-visual-style-option="vibe">
+            <strong>Vibe Dashboard</strong><small>Rounded cards and roomier spacing</small><span aria-hidden="true">✓</span>
+          </button>
+        </div>
+      </section>
+      <section class="appearance-section" aria-labelledby="appearance-color-title">
+        <h4 id="appearance-color-title">Color theme</h4>
+        <div class="appearance-theme-options">
+          <button type="button" data-theme-option="midnight" style="--choice-color:#9867ff"><i></i><span>Midnight</span><b aria-hidden="true">✓</b></button>
+          <button type="button" data-theme-option="ocean" style="--choice-color:#35b9e9"><i></i><span>Ocean</span><b aria-hidden="true">✓</b></button>
+          <button type="button" data-theme-option="forest" style="--choice-color:#54d69a"><i></i><span>Forest</span><b aria-hidden="true">✓</b></button>
+          <button type="button" data-theme-option="ember" style="--choice-color:#ff8a4c"><i></i><span>Ember</span><b aria-hidden="true">✓</b></button>
+          <button type="button" data-theme-option="slate" style="--choice-color:#9ca8b8"><i></i><span>Slate</span><b aria-hidden="true">✓</b></button>
+        </div>
+      </section>
+      <div class="dialog-actions"><button value="close" class="primary">Done</button></div>
+    </form>
+  </dialog>
+
   <!-- Passwords and access tokens are submitted to the local server but never stored by the browser. -->
   <dialog id="settings-dialog">
     <form method="dialog" class="settings-card">
@@ -972,6 +988,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=013"></script>
+  <script src="app.js?v=014"></script>
 </body>
 </html>
