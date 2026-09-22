@@ -3,10 +3,10 @@ Release: Tester
 
 START HERE
 
-1. Right-click the ZIP and choose Extract All.
-2. Open the extracted folder.
-3. Double-click "Open John's Twitch Handler.cmd".
-4. The setup screen opens automatically in your browser.
+1. Open the downloaded John's Twitch Handler Setup application.
+2. It creates Desktop and Start Menu shortcuts for you.
+3. The setup screen opens automatically in your browser.
+4. For a future update, download and open the newer Setup application.
 
 SETUP
 

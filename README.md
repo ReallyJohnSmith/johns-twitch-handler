@@ -8,8 +8,8 @@ Sharing the project with a regular ChatGPT conversation? Upload
 The owner and tester builds use the same approved feature set. Each installation keeps its own connection data locally; credentials are never packaged or synchronized. See `RELEASE_WORKFLOW.md` for the release rules.
 
 The current approved release is **.012**. `RELEASE_VERSION.txt` controls tester package numbering;
-the owner and tester badges show the same release number, while the tester ZIP also includes it in
-the filename.
+the owner and tester badges show the same release number, while the tester Setup executable also
+includes it in the filename.
 
 Bookmark `http://127.0.0.1:5274/` to open the installed Handler. The URL stays the same between releases and dashboard files are revalidated after every restart, so the bookmark shows the currently installed approved build.
 
@@ -134,7 +134,7 @@ Spotify, Tangia, StreamElements, and TikFinity are optional per computer. Each h
 
 ## Build a nontechnical tester package
 
-The package script creates a self-contained Windows build, inserts only public application IDs, defaults Spotify, Tangia, StreamElements, and TikFinity to skipped unless explicitly enabled, and produces a ZIP under `artifacts\tester-packages`. It never includes saved credentials, reports, viewer notes, raid history, automations, or local logs.
+The package script creates a self-contained Windows installer, inserts only public application IDs, defaults Spotify, Tangia, StreamElements, and TikFinity to skipped unless explicitly enabled, and produces one versioned `Setup.exe` under `artifacts\tester-packages`. It never includes saved credentials, reports, viewer notes, raid history, automations, or local logs.
 
 ```powershell
 .\build-tester-package.ps1 -TwitchClientId "YOUR_PUBLIC_TWITCH_CLIENT_ID"
@@ -146,7 +146,7 @@ If a tester should also start with Spotify or Tangia enabled:
 .\build-tester-package.ps1 -TwitchClientId "YOUR_PUBLIC_TWITCH_CLIENT_ID" -SpotifyClientId "YOUR_PUBLIC_SPOTIFY_CLIENT_ID" -EnableSpotify -EnableTangia -EnableStreamElements -EnableTikFinity
 ```
 
-The tester extracts the ZIP and double-clicks **Open John's Twitch Handler.cmd**. The first-run setup opens automatically. They paste their OBS WebSocket password and approve Twitch; no .NET installation, database, developer dashboard, Client ID, Broadcaster ID, or manually generated token is required. A secret-free diagnostic export is available in Settings for support.
+The tester downloads and opens the single Setup executable. It installs only for their Windows account, creates Desktop and Start Menu shortcuts, and opens first-run setup automatically. They paste their OBS WebSocket password and approve Twitch; no ZIP extraction, .NET installation, database, developer dashboard, Client ID, Broadcaster ID, or manually generated token is required. Running a newer Setup executable safely refreshes the installed application without touching its local connections or reports. A secret-free diagnostic export is available in Settings for support.
 
 John's Twitch Handler controls the active Spotify client; it does not capture audio or change OBS routing. Keeping Spotify off the Twitch VOD track does not itself grant broadcast rights, so verify that your music use complies with the applicable Spotify and Twitch terms.
 

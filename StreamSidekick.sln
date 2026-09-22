@@ -1,9 +1,13 @@
-
+﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 17
 VisualStudioVersion = 17.0.31903.59
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "John's Twitch Handler", "src\StreamSidekick\StreamSidekick.csproj", "{246060A5-D0B7-4BD4-9051-D5D2C5C77314}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{DFBC1845-286C-43EF-9F5B-A6A24E8164D4}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "StreamSidekick.Installer", "src\StreamSidekick.Installer\StreamSidekick.Installer.csproj", "{353B3037-3A23-4155-B160-DAEC6750370B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,5 +19,12 @@ Global
 		{246060A5-D0B7-4BD4-9051-D5D2C5C77314}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{246060A5-D0B7-4BD4-9051-D5D2C5C77314}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{246060A5-D0B7-4BD4-9051-D5D2C5C77314}.Release|Any CPU.Build.0 = Release|Any CPU
+		{353B3037-3A23-4155-B160-DAEC6750370B}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{353B3037-3A23-4155-B160-DAEC6750370B}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{353B3037-3A23-4155-B160-DAEC6750370B}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{353B3037-3A23-4155-B160-DAEC6750370B}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{353B3037-3A23-4155-B160-DAEC6750370B} = {DFBC1845-286C-43EF-9F5B-A6A24E8164D4}
 	EndGlobalSection
 EndGlobal

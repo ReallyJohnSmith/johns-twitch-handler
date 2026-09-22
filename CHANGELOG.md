@@ -6,6 +6,7 @@
 - Chosen panels appear directly in Simple mode while the rest of the technical dashboard stays hidden.
 - Added a compact Simple-mode shortcut list and kept the older Chat, Spotify, and Ad choices compatible.
 - Kept pin choices local to each installation so owner and tester layouts remain private and independent.
+- Replaced tester ZIP distribution with one per-user Windows Setup executable that installs shortcuts and supports simple in-place updates.
 
 ## .011 - 2026-09-22
 

@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net9.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>JohnsTwitchHandlerSetup</AssemblyName>
+    <Product>John's Twitch Handler Setup</Product>
+    <Title>John's Twitch Handler Setup</Title>
+  </PropertyGroup>
+
+  <!-- The release script supplies a temporary, secret-free application payload. Keeping it as one
+       embedded resource gives a tester one Setup.exe instead of a ZIP they must understand. -->
+  <ItemGroup Condition="'$(PayloadZip)' != ''">
+    <EmbeddedResource Include="$(PayloadZip)" LogicalName="JohnsTwitchHandler.Payload.zip" />
+  </ItemGroup>
+</Project>

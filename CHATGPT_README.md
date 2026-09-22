@@ -80,8 +80,8 @@ one cohesive control surface; raw metrics, graphs, process data, and diagnostics
 - Browser preferences: themes, collapsed cards, and similar display preferences use local storage.
 - Credentials: connection tokens and passwords are encrypted locally with ASP.NET Data Protection
   and Windows DPAPI. They are tied to the user's Windows account and computer.
-- Distribution: the tester package is a self-contained Windows x64 ZIP. Testers do not need to
-  install .NET, Node.js, a database, or developer tools.
+- Distribution: the tester package is one self-installing Windows x64 `Setup.exe`. Testers do not
+  extract a ZIP or install .NET, Node.js, a database, or developer tools.
 
 The browser is the control surface. The local C# process owns integrations, credentials, monitoring,
 file storage, and API calls. Browser JavaScript should not receive or store secrets.
@@ -176,7 +176,7 @@ Owner and tester builds share the same approved functionality. Differences are c
 identity, not separate feature forks.
 
 - The owner build is John's local working installation.
-- Tester builds use a visible **Tester** label and a versioned ZIP filename.
+- Tester builds use a visible **Tester** label and a versioned Setup executable filename.
 - Each installation has its own connections, settings, reports, and encrypted credentials.
 - Tester data is not sent to John and cannot be viewed by John.
 - Public OAuth Client IDs may be distributed; client secrets, tokens, passwords, and signing keys may
@@ -203,7 +203,7 @@ When proposing or reviewing a change, preserve these rules:
 ## Privacy and safety requirements
 
 - Never put Twitch, Spotify, Discord, OBS, or other private credentials in GitHub, documentation, or
-  a tester ZIP.
+  a tester installer.
 - Never collect tester telemetry by default.
 - Never imply that John can see another user's settings, reports, viewer notes, or account data.
 - Keep the web server bound to loopback unless a separate security review explicitly approves a
@@ -263,8 +263,8 @@ syntax. Feature work should use focused commits or branches, preserve unrelated 
 avoid committing generated output.
 
 Ignored content includes build directories, logs, local data, environment files, signing keys, and
-generated ZIP packages. GitHub currently stores source and version history; tester ZIPs are generated
-locally until a deliberate public distribution workflow is approved.
+generated installers. Approved tester Setup executables may be attached to GitHub Releases, while
+generated output remains outside source control.
 
 ## Important source files
 
@@ -278,7 +278,8 @@ locally until a deliberate public distribution workflow is approved.
 - `docs/ARCHITECTURE.md` - developer-oriented architecture notes.
 - `RELEASE_WORKFLOW.md` - owner/tester release rules.
 - `RELEASE_VERSION.txt` - current tester-package number.
-- `build-tester-package.ps1` - creates the self-contained tester ZIP.
+- `src/StreamSidekick.Installer/` - builds the single-file, per-user tester installer.
+- `build-tester-package.ps1` - creates the self-contained tester Setup executable.
 
 ## Normal validation
 

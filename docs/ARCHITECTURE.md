@@ -22,8 +22,9 @@ ASP.NET Core on http://127.0.0.1:5274
 - `src/StreamSidekick/Models.cs` contains request, response, snapshot, and report records.
 - `src/StreamSidekick/Services` separates external connections, monitoring, storage, and streamer tools.
 - `src/StreamSidekick/wwwroot` contains the dependency-free HTML, CSS, JavaScript, overlays, and chat popout.
+- `src/StreamSidekick.Installer` embeds the secret-free published payload into one per-user Setup executable.
 - `packaging` contains the nontechnical tester launcher and first-run instructions.
-- `build-tester-package.ps1` creates a self-contained Windows ZIP with public application IDs only.
+- `build-tester-package.ps1` creates a self-contained Windows Setup executable with public application IDs only.
 
 ## Runtime model
 
@@ -51,4 +52,4 @@ No SQL or cloud database is used. A database becomes relevant only if approved r
 
 ## Distribution
 
-Owner and tester builds come from the same approved source and carry the same visible release number. Configuration differs per installation, and login data never crosses installations. Existing ZIPs do not update themselves.
+Owner and tester builds come from the same approved source and carry the same visible release number. Configuration differs per installation, and login data never crosses installations. The tester receives one versioned Setup executable; opening a newer release refreshes the installed program without replacing user data.
