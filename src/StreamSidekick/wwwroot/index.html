@@ -5,9 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0d13">
   <title>John's Twitch Handler</title>
-  <link rel="stylesheet" href="styles.css?v=012">
+  <link rel="stylesheet" href="styles.css?v=013">
 </head>
-<body data-user-mode="simple">
+<body data-user-mode="simple" data-visual-style="broadcast">
   <!-- A real fixed element is used instead of a body pseudo-element so browser compositors cannot clip it. -->
   <div id="status-border" class="status-border warning" aria-hidden="true"></div>
   <div class="shell">
@@ -28,6 +28,13 @@
           <button type="button" class="active" data-user-mode="simple" aria-pressed="true">Simple</button>
           <button type="button" data-user-mode="advanced" aria-pressed="false">Advanced</button>
         </div>
+        <label class="visual-style-picker" title="Switch between the compact broadcast console and the original dashboard appearance">
+          <span>Look</span>
+          <select id="visual-style-select" aria-label="Dashboard visual style">
+            <option value="broadcast">Broadcast Console</option>
+            <option value="vibe">Vibe Dashboard</option>
+          </select>
+        </label>
         <span class="layout-hint advanced-only">Panel onto panel stacks · pull a tab away to unstack · Float undocks</span>
         <label class="theme-picker advanced-only" title="Choose a dashboard color theme">
           <span>Theme</span>
@@ -965,6 +972,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=012"></script>
+  <script src="app.js?v=013"></script>
 </body>
 </html>

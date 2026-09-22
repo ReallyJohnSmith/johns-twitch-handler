@@ -1,5 +1,11 @@
 # John's Twitch Handler release history
 
+## .013 - 2026-09-22
+
+- Added a persistent **Look** selector with **Broadcast Console** and **Vibe Dashboard** choices.
+- Restored the earlier rounded-card visual as an appearance option without duplicating or removing any functionality.
+- Kept Simple/Advanced mode, integrations, panel layouts, and live state shared across both appearances.
+
 ## .012 - 2026-09-22
 
 - Added **Add to Simple** to eligible Advanced panels, including Spotify song requests.

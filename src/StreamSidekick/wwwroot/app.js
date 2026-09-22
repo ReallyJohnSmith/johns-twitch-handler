@@ -1524,6 +1524,7 @@ const panelSizesStorageKey = "streamsidekick.panelSizes";
 const floatingPanelsStorageKey = "streamsidekick.floatingPanels";
 const panelTabGroupsStorageKey = "streamsidekick.panelTabGroups";
 const themeStorageKey = "streamsidekick.theme";
+const visualStyleStorageKey = "johns-handler.visual-style";
 const workspaceStorageKey = "streamsidekick.workspacePage";
 const panelPagesStorageKey = "streamsidekick.panelPages";
 const userModeStorageKey = "streamsidekick.userMode";
@@ -2089,6 +2090,22 @@ const themes = {
   ember: "#120a08",
   slate: "#0b0e12"
 };
+
+function initializeVisualStyle() {
+  const saved = localStorage.getItem(visualStyleStorageKey);
+  applyVisualStyle(saved === "vibe" ? "vibe" : "broadcast", false);
+  $("#visual-style-select").addEventListener("change", event => applyVisualStyle(event.target.value, true));
+}
+
+function applyVisualStyle(style, persist) {
+  const selected = style === "vibe" ? "vibe" : "broadcast";
+  document.body.dataset.visualStyle = selected;
+  $("#visual-style-select").value = selected;
+  if (persist) {
+    localStorage.setItem(visualStyleStorageKey, selected);
+    toast(selected === "vibe" ? "Vibe Dashboard selected." : "Broadcast Console selected.");
+  }
+}
 
 function initializeTheme() {
   const saved = localStorage.getItem(themeStorageKey);
@@ -4146,6 +4163,7 @@ async function boot() {
   window.setInterval(() => renderDuringStatusStrip(document.body.dataset.workspacePage || "pre"), 1000);
 }
 async function startDashboard() {
+  initializeVisualStyle();
   initializeTheme();
   initializeUserMode();
   renderGuidedDemo();

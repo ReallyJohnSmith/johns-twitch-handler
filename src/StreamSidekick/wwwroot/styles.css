@@ -86,14 +86,15 @@ h1 { font-size: 17px; letter-spacing: -.02em; }
 .user-mode-switch button { min-width: 66px; padding: 6px 9px; border-radius: 7px; background: transparent; color: var(--muted); font-size: 10px; }
 .user-mode-switch button.active { background: var(--purple); color: white; box-shadow: 0 4px 14px rgba(116,71,232,.24); }
 .layout-hint { color: var(--muted); font-size: 10px; }
-.theme-picker { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; }
-.theme-picker select { max-width: 104px; padding: 6px 24px 6px 8px; border: 1px solid var(--line); border-radius: 8px; outline: none; background: var(--panel); color: var(--text); font: inherit; cursor: pointer; }
-.theme-picker select:focus { border-color: var(--purple); }
+.theme-picker, .visual-style-picker { display: inline-flex; align-items: center; gap: 6px; color: var(--muted); font-size: 10px; }
+.theme-picker select, .visual-style-picker select { max-width: 130px; padding: 6px 24px 6px 8px; border: 1px solid var(--line); border-radius: 8px; outline: none; background: var(--panel); color: var(--text); font: inherit; cursor: pointer; }
+.theme-picker select:focus, .visual-style-picker select:focus { border-color: var(--purple); }
 .pill { display: inline-flex; align-items: center; gap: 8px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 999px; color: var(--muted); font-size: 12px; }
 .pill i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
 .pill.online { color: var(--green); border-color: rgba(85,220,152,.24); background: rgba(85,220,152,.06); }
 .pill.live { color: var(--red); border-color: rgba(255,111,125,.24); background: rgba(255,111,125,.06); }
 .icon-button { width: 38px; height: 38px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--muted); font-size: 19px; }
+#settings-button { width: auto; padding: 0 12px; font-size: 10px; text-transform: uppercase; }
 .workspace-layout { display: grid; grid-template-columns: 176px minmax(0, 1fr); align-items: start; gap: 22px; }
 .workspace-layout main { min-width: 0; padding-top: 28px; }
 .phase-nav { position: sticky; top: 14px; display: grid; gap: 8px; padding-top: 28px; }
@@ -727,7 +728,7 @@ fieldset small { color: var(--muted); line-height: 1.5; }
   .shell { padding: 0 16px 32px; }
   .topbar, .hero-card { align-items: stretch; }
   .topbar { min-height: 76px; }
-  .brand p, .pill.neutral, .layout-hint, .theme-picker span { display: none; }
+  .brand p, .pill.neutral, .layout-hint, .theme-picker span, .visual-style-picker span { display: none; }
   .privacy-pill { display: none; }
   .user-mode-switch { margin-left: auto; }
   .user-mode-switch button { min-width: 58px; padding: 6px 7px; }
@@ -783,8 +784,11 @@ fieldset small { color: var(--muted); line-height: 1.5; }
 
 /* Broadcast-console refinement ---------------------------------------------------------------
    The dashboard should resemble a dependable OBS companion: flat surfaces, tight spacing, and
-   hierarchy driven by the current stream state instead of decorative cards. */
-body { background: var(--bg); }
+   hierarchy driven by the current stream state instead of decorative cards. Keeping this inside a
+   scoped block lets the user return to the original rounded "Vibe Dashboard" without duplicating
+   markup, live state, or integration code. */
+@scope (body[data-visual-style="broadcast"]) {
+:scope { background: var(--bg); }
 .shell { padding: 0 22px 30px; }
 .topbar { min-height: 64px; }
 .brand { gap: 10px; }
@@ -794,6 +798,7 @@ body { background: var(--bg); }
 .user-mode-switch { padding: 2px; border-radius: 3px; background: var(--inner-surface); }
 .user-mode-switch button { min-width: 62px; padding: 5px 8px; border-radius: 2px; }
 .user-mode-switch button.active { background: var(--purple-2); box-shadow: none; }
+.visual-style-picker select, .theme-picker select { border-radius: 3px; background: var(--inner-surface); }
 .privacy-pill, .release-channel-pill, .release-channel-pill.tester { border-radius: 3px; background: transparent; }
 .privacy-pill { border-color: var(--line); color: var(--muted); font-size: 8px; }
 .release-channel-pill { padding: 3px 6px; border-color: var(--line); color: var(--muted); font-size: 8px; }
@@ -922,4 +927,5 @@ dialog::backdrop { backdrop-filter: none; }
   .broadcast-readout, .broadcast-readout:nth-child(2) { border-right: 0; border-bottom: 1px solid var(--line); }
   .broadcast-readout:nth-child(3) { border-top: 0; }
   .broadcast-command-actions { border-top: 0; }
+}
 }
