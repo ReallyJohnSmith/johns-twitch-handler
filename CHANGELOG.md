@@ -1,5 +1,12 @@
 # John's Twitch Handler release history
 
+## .012 - 2026-09-22
+
+- Added **Add to Simple** to eligible Advanced panels, including Spotify song requests.
+- Chosen panels appear directly in Simple mode while the rest of the technical dashboard stays hidden.
+- Added a compact Simple-mode shortcut list and kept the older Chat, Spotify, and Ad choices compatible.
+- Kept pin choices local to each installation so owner and tester layouts remain private and independent.
+
 ## .011 - 2026-09-22
 
 - Made panel-heading-to-panel-heading drops create tab stacks, matching the natural OBS gesture shown in John's recording.

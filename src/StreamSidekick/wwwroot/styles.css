@@ -113,6 +113,13 @@ h1 { font-size: 17px; letter-spacing: -.02em; }
 .phase-nav-context span { color: var(--muted); font-size: 8px; line-height: 1.45; }
 body[data-user-mode="simple"] .advanced-only { display: none !important; }
 body[data-user-mode="simple"]:not(.simple-details-open) .advanced-detail { display: none !important; }
+/* Advanced panels explicitly chosen by the user become part of Simple mode without revealing the
+   rest of the technical dashboard. Their original controls and live state remain unchanged. */
+body[data-user-mode="simple"]:not(.simple-details-open) .dashboard-grid:has(> .panel.simple-pinned:not(.workspace-hidden)) { display: grid !important; }
+body[data-user-mode="simple"]:not(.simple-details-open) .dashboard-grid > .panel { display: none !important; }
+body[data-user-mode="simple"]:not(.simple-details-open) .dashboard-grid > .panel.simple-pinned:not(.workspace-hidden):not(.tab-hidden) { display: block !important; }
+body[data-user-mode="simple"]:not(.simple-details-open) .panel.simple-pinned :is(.panel-simple-button, .panel-float-button, .panel-collapse-button, .panel-resize-handle) { display: none !important; }
+body[data-user-mode="simple"]:not(.simple-details-open) .panel.simple-pinned .panel-heading { cursor: default; }
 body[data-user-mode="advanced"] .simple-summary { display: none; }
 body[data-user-mode="simple"][data-workspace-page="during"] .simple-summary-hero { display: none; }
 .hero-card { display: grid; grid-template-columns: minmax(0, 1fr) minmax(320px, 430px); gap: 20px 24px; align-items: end; padding: 24px 28px 20px; margin-bottom: 18px; border: 1px solid var(--line); border-radius: 18px; background: linear-gradient(110deg, var(--hero-start), var(--hero-end) 60%); }
@@ -254,8 +261,11 @@ button:disabled { cursor: not-allowed; opacity: .45; transform: none; }
 .panel-heading button, .panel-heading a, .panel-heading input { cursor: pointer; }
 .panel-heading::before { content: "⠿"; position: absolute; top: 4px; left: 50%; color: #454c5e; font-size: 13px; opacity: 0; transform: translateX(-50%); transition: opacity .15s ease; }
 .panel:hover .panel-heading::before { opacity: 1; }
-.panel-heading-actions { display: flex; align-items: center; flex: 0 0 auto; gap: 8px; }
+.panel-heading-actions { display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; flex: 0 0 auto; gap: 8px; }
 .panel-collapse-button { display: grid; place-items: center; width: 29px; height: 29px; padding: 0; border: 1px solid var(--line); background: var(--panel-2); color: var(--muted); font-size: 18px; line-height: 1; }
+.panel-simple-button { min-width: 76px; height: 29px; padding: 0 8px; border: 1px solid var(--line); background: var(--panel-2); color: var(--muted); font-size: 9px; }
+.panel-simple-button:hover { border-color: rgba(88,205,255,.5); color: var(--text); }
+.panel-simple-button.active { border-color: rgba(88,205,255,.5); background: rgba(88,205,255,.08); color: var(--blue); }
 .panel-float-button { min-width: 42px; height: 29px; padding: 0 7px; border: 1px solid var(--line); background: var(--panel-2); color: var(--muted); font-size: 9px; }
 .panel-float-button:hover { border-color: rgba(152,103,255,.5); color: var(--text); }
 .panel-collapse-button:hover { border-color: rgba(152,103,255,.5); color: white; }

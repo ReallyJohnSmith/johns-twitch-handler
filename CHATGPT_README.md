@@ -10,7 +10,7 @@ John's Twitch Handler is a lightweight Windows streaming companion created prima
 use on his own Twitch channel. John is the primary user and tester. The product should remain useful
 to him personally while also being simple enough for nontechnical testers to download and open.
 
-Current approved version: **.011**
+Current approved version: **.012**
 
 Source repository: <https://github.com/ReallyJohnSmith/johns-twitch-handler>
 
@@ -112,6 +112,7 @@ opens After stream.
 - Reversible, performance-first OBS recommendation centered on 720p at 30 FPS using NVENC.
 - Five dashboard color themes.
 - Movable, resizable, collapsible, floatable, and redockable panels with saved layouts, keyboard movement, and OBS-style tab stacks.
+- Per-panel **Add to Simple** controls so users can expose selected Advanced tools without enabling the full Advanced interface.
 
 ### Live stream operation
 

@@ -28,6 +28,8 @@ OPTIONAL FEATURES
   requests no TikTok login in the Handler, and stores no TikTok credentials.
 - Preflight includes a manual Get Coffee reminder. Add or remove your own reminders, and use Open
   preflight list to hide built-in rows you do not want to see. Hiding affects visibility only.
+- Prefer Simple mode but need one detailed tool? Switch to Advanced, press Add to Simple on that
+  panel, then return to Simple. The chosen tool appears there without exposing every Advanced panel.
 
 You do not need .NET, Node.js, a database, a Twitch developer app, or a Spotify developer app.
 Your Twitch and OBS connections are encrypted for your Windows account and stay on your computer.

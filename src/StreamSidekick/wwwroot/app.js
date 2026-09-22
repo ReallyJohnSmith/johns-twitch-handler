@@ -1528,6 +1528,7 @@ const workspaceStorageKey = "streamsidekick.workspacePage";
 const panelPagesStorageKey = "streamsidekick.panelPages";
 const userModeStorageKey = "streamsidekick.userMode";
 const simpleFeatureStorageKey = "johns-handler.simple-features";
+const simplePanelShortcutsStorageKey = "johns-handler.simple-panel-shortcuts";
 const simpleFeatureDefinitions = [
   { id: "reminders", label: "Personal checklist", detail: "Show Get Coffee and other manual Preflight reminders.", defaultEnabled: true },
   { id: "health", label: "Stream Health", detail: "Show the plain-English computer and internet summary before streaming.", defaultEnabled: true },
@@ -1536,7 +1537,27 @@ const simpleFeatureDefinitions = [
   { id: "spotify", label: "Song requests", detail: "Pin a shortcut to the Spotify queue and request controls.", defaultEnabled: false },
   { id: "ads", label: "Ad timer", detail: "Pin a shortcut to the ad-break timer.", defaultEnabled: false }
 ];
+const simplePanelShortcutDefinitions = [
+  { id: "scenes", label: "OBS scenes" },
+  { id: "audio", label: "Audio mixer" },
+  { id: "chat", label: "Chat" },
+  { id: "alerts", label: "Activity feed" },
+  { id: "clips", label: "Clip assistant" },
+  { id: "ads", label: "Ad timer" },
+  { id: "performance", label: "Performance" },
+  { id: "commands", label: "Chat commands" },
+  { id: "automations", label: "Automations" },
+  { id: "raids", label: "Raid manager" },
+  { id: "viewers", label: "Viewer notes" },
+  { id: "spotify", label: "Spotify song requests" },
+  { id: "tangia", label: "Tangia controls" },
+  { id: "streamelements", label: "Multistream" },
+  { id: "tikfinity", label: "TikTok chat" },
+  { id: "optimizer", label: "Broadcast optimizer" },
+  { id: "report", label: "Stream report" }
+];
 let simpleFeaturePreferences = loadSimpleFeaturePreferences();
+let simplePanelShortcuts = loadSimplePanelShortcuts();
 const legacyDefaultPanelOrder = ["stream-health", "clips", "scenes", "audio", "chat", "alerts", "commands", "automations", "raids", "viewers", "streamelements", "tikfinity", "tangia", "ads", "spotify", "performance", "optimizer", "report"];
 const defaultPanelOrder = ["stream-health", "scenes", "audio", "chat", "alerts", "clips", "ads", "performance", "commands", "automations", "raids", "viewers", "spotify", "tangia", "streamelements", "tikfinity", "optimizer", "report"];
 let layoutSaveChain = Promise.resolve();
@@ -1572,6 +1593,48 @@ function loadSimpleFeaturePreferences() {
 
 function saveSimpleFeaturePreferences() {
   localStorage.setItem(simpleFeatureStorageKey, JSON.stringify(simpleFeaturePreferences));
+}
+
+function loadSimplePanelShortcuts() {
+  const allowed = new Set(simplePanelShortcutDefinitions.map(item => item.id));
+  try {
+    const saved = JSON.parse(localStorage.getItem(simplePanelShortcutsStorageKey) || "null");
+    if (Array.isArray(saved)) return new Set(saved.filter(id => allowed.has(id)));
+  } catch { /* Fall through to the older Simple preferences. */ }
+  // Preserve the three shortcuts supported before panels gained their own Add to Simple button.
+  return new Set(["chat", "spotify", "ads"].filter(id => simpleFeaturePreferences[id]));
+}
+
+function saveSimplePanelShortcuts() {
+  localStorage.setItem(simplePanelShortcutsStorageKey, JSON.stringify([...simplePanelShortcuts]));
+}
+
+function setSimplePanelShortcut(panelId, enabled, announce = true) {
+  const definition = simplePanelShortcutDefinitions.find(item => item.id === panelId);
+  if (!definition) return;
+  if (enabled) simplePanelShortcuts.add(panelId);
+  else simplePanelShortcuts.delete(panelId);
+  // Keep the original three Customize Simple choices compatible with the new panel buttons.
+  if (["chat", "spotify", "ads"].includes(panelId)) {
+    simpleFeaturePreferences[panelId] = enabled;
+    saveSimpleFeaturePreferences();
+  }
+  saveSimplePanelShortcuts();
+  updateSimplePanelShortcutButtons();
+  renderSimpleExperience();
+  if (announce) toast(`${definition.label} ${enabled ? "added to" : "removed from"} Simple mode.`);
+}
+
+function updateSimplePanelShortcutButtons() {
+  $$(".dashboard-grid > .panel").forEach(panel => {
+    panel.classList.toggle("simple-pinned", simplePanelShortcuts.has(panel.dataset.panelId));
+  });
+  $$('[data-simple-panel-shortcut]').forEach(button => {
+    const enabled = simplePanelShortcuts.has(button.dataset.simplePanelShortcut);
+    button.classList.toggle("active", enabled);
+    button.setAttribute("aria-pressed", String(enabled));
+    button.textContent = enabled ? "In Simple ✓" : "Add to Simple";
+  });
 }
 
 function initializeUserMode() {
@@ -1619,6 +1682,7 @@ function applyUserMode(mode, persist) {
     localStorage.setItem(userModeStorageKey, selected);
     toast(`${selected === "simple" ? "Simple" : "Advanced"} mode selected.`);
   }
+  if (panelTabGroups.length) renderPanelTabGroups();
   renderSimpleExperience();
 }
 
@@ -1708,19 +1772,25 @@ function renderSimpleTools(page) {
   secondary.textContent = quickTools.secondary[1];
   $("#simple-quick-card").hidden = !simpleFeaturePreferences.quick;
 
-  const pinned = [
-    ["chat", "Chat & activity"],
-    ["spotify", "Song requests"],
-    ["ads", "Ad timer"]
-  ].filter(([id]) => simpleFeaturePreferences[id]);
+  const pinned = simplePanelShortcutDefinitions.filter(item => simplePanelShortcuts.has(item.id));
   const pinnedCard = $("#simple-pinned-card");
   pinnedCard.hidden = pinned.length === 0;
-  $("#simple-pinned-actions").innerHTML = pinned.map(([id, label]) =>
-    `<button class="secondary" type="button" data-simple-tool="${id}">${label}</button>`).join("");
+  $("#simple-pinned-count").textContent = `${pinned.length} selected`;
+  $("#simple-pinned-actions").innerHTML = pinned.map(item =>
+    `<button class="secondary" type="button" data-simple-tool="panel:${escapeHtml(item.id)}">${escapeHtml(item.label)}</button>`).join("");
   if (grid) grid.hidden = [...grid.children].every(card => card.hidden);
 }
 
 function runSimpleTool(tool) {
+  if (tool.startsWith("panel:")) {
+    const panelId = tool.slice(6);
+    const panel = document.querySelector(`[data-panel-id="${CSS.escape(panelId)}"]`);
+    if (!panel) return;
+    const pages = (panel.dataset.pages || "during").split(/\s+/);
+    const currentPage = document.body.dataset.workspacePage || "pre";
+    showPanel(panel, pages.includes(currentPage) ? currentPage : pages[0]);
+    return;
+  }
   if (tool === "refresh") $("#refresh-button").click();
   else if (tool === "settings") openSettings();
   else if (tool === "health") { setSimpleDetails(true); showPanel(document.querySelector('[data-panel-id="performance"]'), document.body.dataset.workspacePage || "pre"); }
@@ -1734,9 +1804,12 @@ function runSimpleTool(tool) {
 }
 
 function renderSimpleCustomization() {
-  $("#simple-customize-list").innerHTML = simpleFeatureDefinitions.map(feature => `
+  const extraPinned = simplePanelShortcutDefinitions
+    .filter(item => simplePanelShortcuts.has(item.id) && !["chat", "spotify", "ads"].includes(item.id))
+    .map(item => ({ id: `panel:${item.id}`, label: item.label, detail: "Shortcut added from Advanced mode.", defaultEnabled: false }));
+  $("#simple-customize-list").innerHTML = [...simpleFeatureDefinitions, ...extraPinned].map(feature => `
     <label class="simple-customize-row">
-      <input type="checkbox" data-simple-feature="${feature.id}" ${simpleFeaturePreferences[feature.id] ? "checked" : ""}>
+      <input type="checkbox" data-simple-feature="${feature.id}" ${feature.id.startsWith("panel:") ? "checked" : simpleFeaturePreferences[feature.id] ? "checked" : ""}>
       <span><strong>${escapeHtml(feature.label)}</strong><small>${escapeHtml(feature.detail)}</small></span>
     </label>`).join("");
 }
@@ -2075,6 +2148,15 @@ async function initializeMovablePanels() {
     const collapseButton = document.createElement("button");
     collapseButton.type = "button";
     collapseButton.className = "panel-collapse-button";
+    const simpleShortcut = simplePanelShortcutDefinitions.find(item => item.id === panel.dataset.panelId);
+    const simpleButton = simpleShortcut ? document.createElement("button") : null;
+    if (simpleButton) {
+      simpleButton.type = "button";
+      simpleButton.className = "panel-simple-button";
+      simpleButton.dataset.simplePanelShortcut = panel.dataset.panelId;
+      simpleButton.title = `Show ${simpleShortcut.label} in Simple mode`;
+      headingActions.append(simpleButton);
+    }
     const floatButton = document.createElement("button");
     floatButton.type = "button";
     floatButton.className = "panel-float-button";
@@ -2084,6 +2166,11 @@ async function initializeMovablePanels() {
     applyPanelSize(panel, panelSizes[panel.dataset.panelId]);
     addPanelResizeHandle(panel, panelName, grid);
     setPanelFloating(panel, Boolean(floatingPanels[panel.dataset.panelId]), floatButton, panelName, floatingPanels[panel.dataset.panelId]);
+
+    simpleButton?.addEventListener("click", event => {
+      event.stopPropagation();
+      setSimplePanelShortcut(panel.dataset.panelId, !simplePanelShortcuts.has(panel.dataset.panelId));
+    });
 
     collapseButton.addEventListener("click", event => {
       event.stopPropagation();
@@ -2145,6 +2232,10 @@ async function initializeMovablePanels() {
 
     panel.addEventListener("dragstart", event => {
       if (event.target.closest("[data-panel-tab]")) return;
+      if (document.body.dataset.userMode === "simple" && !document.body.classList.contains("simple-details-open")) {
+        event.preventDefault();
+        return;
+      }
       if (panel.dataset.dragArmed !== "true") {
         event.preventDefault();
         return;
@@ -2168,6 +2259,7 @@ async function initializeMovablePanels() {
     });
   });
 
+  updateSimplePanelShortcutButtons();
   initializePanelTabGroups();
 
   grid.addEventListener("dragover", event => {
@@ -2535,7 +2627,10 @@ function renderPanelTabGroups() {
     panels.forEach(panel => { panel.dataset.tabGroup = group.id; });
     const visible = panels.filter(panel => (panel.dataset.pages || "during").split(/\s+/).includes(page));
     if (visible.length < 2) return;
-    const active = visible.find(panel => panel.dataset.panelId === group.active) || visible[0];
+    const simplePinned = document.body.dataset.userMode === "simple" && !document.body.classList.contains("simple-details-open")
+      ? visible.find(panel => panel.classList.contains("simple-pinned"))
+      : null;
+    const active = simplePinned || visible.find(panel => panel.dataset.panelId === group.active) || visible[0];
     group.active = active.dataset.panelId;
     visible.forEach(panel => panel.classList.toggle("tab-hidden", panel !== active));
 
@@ -3281,13 +3376,23 @@ $("#customize-simple").addEventListener("click", () => {
 $("#simple-customize-list").addEventListener("change", event => {
   const checkbox = event.target.closest("[data-simple-feature]");
   if (!checkbox) return;
-  simpleFeaturePreferences[checkbox.dataset.simpleFeature] = checkbox.checked;
+  const featureId = checkbox.dataset.simpleFeature;
+  if (featureId.startsWith("panel:")) {
+    setSimplePanelShortcut(featureId.slice(6), checkbox.checked, false);
+    renderSimpleCustomization();
+    return;
+  }
+  simpleFeaturePreferences[featureId] = checkbox.checked;
   saveSimpleFeaturePreferences();
+  if (["chat", "spotify", "ads"].includes(featureId)) setSimplePanelShortcut(featureId, checkbox.checked, false);
   renderSimpleExperience();
 });
 $("#reset-simple-customization").addEventListener("click", () => {
   simpleFeaturePreferences = Object.fromEntries(simpleFeatureDefinitions.map(feature => [feature.id, feature.defaultEnabled]));
+  simplePanelShortcuts = new Set();
   saveSimpleFeaturePreferences();
+  saveSimplePanelShortcuts();
+  updateSimplePanelShortcutButtons();
   renderSimpleCustomization();
   renderSimpleExperience();
   toast("Recommended Simple mode restored.");

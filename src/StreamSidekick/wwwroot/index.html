@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="theme-color" content="#0b0d13">
   <title>John's Twitch Handler</title>
-  <link rel="stylesheet" href="styles.css?v=011">
+  <link rel="stylesheet" href="styles.css?v=012">
 </head>
 <body data-user-mode="simple">
   <!-- A real fixed element is used instead of a body pseudo-element so browser compositors cannot clip it. -->
@@ -237,8 +237,9 @@
                 <small>PINNED TOOLS</small>
                 <h3>Your shortcuts</h3>
               </div>
+              <span id="simple-pinned-count">0 selected</span>
             </div>
-            <p>Open optional tools without switching to the full Advanced dashboard.</p>
+            <p>Open only the Advanced tools you chose to keep in Simple mode.</p>
             <div class="simple-quick-actions" id="simple-pinned-actions"></div>
           </section>
         </div>
@@ -863,7 +864,7 @@
         <div><span class="eyebrow">SIMPLE MODE</span><h3>Choose what stays within reach</h3></div>
         <button class="icon-button" value="cancel" aria-label="Close Simple mode customization">×</button>
       </div>
-      <p class="helper">These choices only change what is shown in Simple mode. No feature is disabled or removed.</p>
+      <p class="helper">These choices only change what is shown in Simple mode. In Advanced mode, press <strong>Add to Simple</strong> on any tool you want nearby.</p>
       <div class="simple-customize-list" id="simple-customize-list"></div>
       <div class="dialog-actions">
         <button id="reset-simple-customization" type="button" class="secondary">Restore recommended</button>
@@ -964,6 +965,6 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=011"></script>
+  <script src="app.js?v=012"></script>
 </body>
 </html>
