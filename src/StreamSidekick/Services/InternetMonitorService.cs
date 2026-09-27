@@ -25,6 +25,8 @@ public sealed class InternetMonitorService(SessionStore sessions, ILogger<Intern
         "Waiting for the first connection check.",
         []);
     private string _previousStatus = "checking";
+    private int _slowStreak;
+    private int _healthyLatencyStreak;
 
     public InternetConnectionSnapshot GetSnapshot()
     {
@@ -50,6 +52,7 @@ public sealed class InternetMonitorService(SessionStore sessions, ILogger<Intern
                     var recent = _history.Where(item => probe.At - item.At <= TimeSpan.FromMinutes(1)).ToList();
                     var failures = recent.Count(item => !item.Online);
                     var failurePercent = recent.Count == 0 ? 0 : failures * 100d / recent.Count;
+                    UpdateLatencyStreaks(probe);
                     var status = DetermineStatus(probe, failures);
                     var detail = DescribeCurrent(probe, status, failures);
                     notableEvent = CreateEvent(probe, status, failures);
@@ -87,12 +90,41 @@ public sealed class InternetMonitorService(SessionStore sessions, ILogger<Intern
         }
     }
 
-    private static string DetermineStatus(ProbeResult probe, int recentFailures)
+    private string DetermineStatus(ProbeResult probe, int recentFailures)
     {
         if (!probe.Online) return "offline";
         if (recentFailures >= 2) return "unstable";
-        if (probe.LatencyMs >= 120) return "slow";
+        // Two readings enter or leave the warning state. This preserves real sustained hiccups while
+        // preventing a connection near 120 ms from creating hundreds of slow/recovered timeline rows.
+        if (_previousStatus == "slow") return _healthyLatencyStreak >= 2 ? "healthy" : "slow";
+        if (_slowStreak >= 2) return "slow";
         return "healthy";
+    }
+
+    private void UpdateLatencyStreaks(ProbeResult probe)
+    {
+        if (!probe.Online)
+        {
+            _slowStreak = 0;
+            _healthyLatencyStreak = 0;
+            return;
+        }
+
+        if (probe.LatencyMs >= 120)
+        {
+            _slowStreak++;
+            _healthyLatencyStreak = 0;
+        }
+        else if (probe.LatencyMs < 100)
+        {
+            _healthyLatencyStreak++;
+            _slowStreak = 0;
+        }
+        else
+        {
+            _slowStreak = 0;
+            _healthyLatencyStreak = 0;
+        }
     }
 
     private static string DescribeCurrent(ProbeResult probe, string status, int recentFailures) => status switch
