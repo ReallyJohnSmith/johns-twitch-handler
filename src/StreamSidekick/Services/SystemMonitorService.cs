@@ -56,7 +56,7 @@ public sealed class SystemMonitorService(SessionStore sessions, ILogger<SystemMo
                         _history.Dequeue();
                     }
                 }
-                await sessions.RecordPerformanceSampleAsync(capture.Sample, stoppingToken);
+                await sessions.RecordPerformanceSampleAsync(capture.Sample, capture.ResourceDrains, stoppingToken);
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)
             {

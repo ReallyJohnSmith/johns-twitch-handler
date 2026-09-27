@@ -28,6 +28,7 @@ builder.Services.AddSingleton<ConnectionDiagnosticsLog>();
 builder.Services.AddSingleton<DashboardLayoutStore>();
 builder.Services.AddSingleton<ObsWebSocketClient>();
 builder.Services.AddSingleton<SessionStore>();
+builder.Services.AddSingleton<StreamSessionLifecycleService>();
 builder.Services.AddSingleton<TwitchClient>();
 builder.Services.AddSingleton<TwitchEventSubService>();
 builder.Services.AddSingleton<NvidiaBroadcastService>();
@@ -47,6 +48,7 @@ builder.Services.AddSingleton<AutomationService>();
 builder.Services.AddSingleton<RaidManagerService>();
 builder.Services.AddSingleton<ViewerNoteService>();
 builder.Services.AddHostedService(provider => provider.GetRequiredService<SystemMonitorService>());
+builder.Services.AddHostedService(provider => provider.GetRequiredService<StreamSessionLifecycleService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<InternetMonitorService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<WowEventMonitorService>());
 builder.Services.AddHostedService(provider => provider.GetRequiredService<ConnectionSupervisor>());
@@ -120,7 +122,11 @@ twitchEvents.ChatMessageReceived += message => RunEventTask(
 twitchEvents.ChatCommandReceived += message =>
 {
     viewerNotes.Observe(message.UserName, "Appeared in chat");
-    RunEventTask(() => HandleChatCommandAsync(message), "handle a Twitch chat command");
+    RunEventTask(async () =>
+    {
+        await sessions.AddChatMessageAsync(message);
+        await HandleChatCommandAsync(message);
+    }, "record Twitch chat and handle a command");
 };
 twitchEvents.AlertReceived += alert => RunEventTask(async () =>
 {
@@ -869,6 +875,13 @@ app.MapGet("/api/reports/latest", async (CancellationToken cancellationToken) =>
     var report = await sessions.LatestReportAsync(cancellationToken);
     return report is null ? Results.NotFound(new { error = "No reports found." }) : Results.Ok(report);
 });
+app.MapGet("/api/reports", async (int? limit, CancellationToken cancellationToken) =>
+    Results.Ok(await sessions.ListReportsAsync(limit ?? 30, cancellationToken)));
+app.MapGet("/api/reports/{id:guid}", async (Guid id, CancellationToken cancellationToken) =>
+{
+    var report = await sessions.ReportAsync(id, cancellationToken);
+    return report is null ? Results.NotFound(new { error = "That saved stream was not found." }) : Results.Ok(report);
+});
 
 app.MapPost("/api/markers", async (MarkerRequest request, CancellationToken cancellationToken) =>
 {
@@ -912,6 +925,7 @@ app.MapPost("/api/markers", async (MarkerRequest request, CancellationToken canc
 
 app.MapGet("/api/twitch/status", () => Results.Ok(twitch.GetStatus()));
 app.MapGet("/api/alerts", () => Results.Ok(twitchEvents.GetSnapshot()));
+app.MapGet("/api/chat/messages", () => Results.Ok(twitchEvents.GetChatSnapshot()));
 app.MapPost("/api/alerts/test", () =>
 {
     twitchEvents.AddTestAlert();

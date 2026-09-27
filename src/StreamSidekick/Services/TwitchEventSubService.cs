@@ -20,6 +20,7 @@ public sealed class TwitchEventSubService(IHttpClientFactory httpClientFactory, 
     public event Action<StreamAlert>? AlertReceived;
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly ConcurrentQueue<StreamAlert> _alerts = new();
+    private readonly ConcurrentQueue<TwitchChatMessage> _chatMessages = new();
     private readonly List<string> _setupWarnings = [];
     private ClientWebSocket? _socket;
     private CancellationTokenSource? _receiveCancellation;
@@ -37,6 +38,11 @@ public sealed class TwitchEventSubService(IHttpClientFactory httpClientFactory, 
                 _alerts.Reverse().Take(50).ToList());
         }
     }
+
+    public TwitchChatFeedSnapshot GetChatSnapshot() => new(
+        _socket?.State == WebSocketState.Open,
+        _status,
+        _chatMessages.Reverse().Take(80).Reverse().ToList());
 
     public async Task ConnectAsync(TwitchConfigurationRequest configuration, CancellationToken cancellationToken = default)
     {
@@ -214,7 +220,12 @@ public sealed class TwitchEventSubService(IHttpClientFactory httpClientFactory, 
                         var chatMessage = ParseChatMessage(eventData);
                         // Command handling receives broadcaster messages too, making commands testable
                         // from John's account. Bot replies do not start with !, so they cannot loop.
-                        if (chatMessage is not null) ChatCommandReceived?.Invoke(chatMessage);
+                        if (chatMessage is not null)
+                        {
+                            _chatMessages.Enqueue(chatMessage);
+                            while (_chatMessages.Count > 100) _chatMessages.TryDequeue(out _);
+                            ChatCommandReceived?.Invoke(chatMessage);
+                        }
                         // John's own messages include bot replies sent by this same Twitch account.
                         // Excluding them prevents a feedback chime for the Handler's confirmations.
                         if (chatMessage is { IsBroadcaster: false }) ChatMessageReceived?.Invoke(chatMessage);
@@ -454,3 +465,8 @@ public sealed record TwitchChatMessage(
     string UserName,
     string Text,
     bool IsBroadcaster);
+
+public sealed record TwitchChatFeedSnapshot(
+    bool Connected,
+    string Status,
+    IReadOnlyList<TwitchChatMessage> Messages);

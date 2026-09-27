@@ -7,7 +7,7 @@ Sharing the project with a regular ChatGPT conversation? Upload
 
 The owner and tester builds use the same approved feature set. Each installation keeps its own connection data locally; credentials are never packaged or synchronized. See `RELEASE_WORKFLOW.md` for the release rules.
 
-The current approved release is **.014**. `RELEASE_VERSION.txt` controls tester package numbering;
+The current approved release is **.015**. `RELEASE_VERSION.txt` controls tester package numbering;
 the owner and tester badges show the same release number, while the tester Setup executable also
 includes it in the filename.
 
@@ -22,7 +22,7 @@ Developer references: [architecture](docs/ARCHITECTURE.md), [contributing rules]
 - Provides a compact OBS audio mixer with live meters, mute controls, and volume sliders.
 - Saves the OBS Replay Buffer and creates timestamped highlight notes.
 - Optionally creates Twitch clips and retains their edit links for StreamLadder.
-- Embeds the channel's Twitch chat directly in the dashboard.
+- Embeds the channel's Twitch chat in the dashboard and provides a messages-only local OBS chat overlay.
 - Receives follows, subscriptions, gift subs, resubs, cheers, raids, channel-point rewards, and live/offline alerts through Twitch EventSub.
 - Connects to Spotify with OAuth PKCE, searches tracks, controls the active Spotify queue, and turns a named Twitch Channel Point reward into moderated or automatic song requests.
 - Lets every dashboard panel be rearranged by dragging its header or using four-way Alt+Arrow shortcuts, then remembers the layout.
@@ -32,7 +32,7 @@ Developer references: [architecture](docs/ARCHITECTURE.md), [contributing rules]
 - Lets unused cards collapse to a compact header with the `−` button and remembers which cards are collapsed in that browser; `+` expands them again.
 - Inventories Retail and Classic WoW addons, shows SavedVariables growth, and safely enables/disables addons per character while WoW is closed.
 - Bundles a lightweight in-game profiler companion that exports Blizzard's addon execution metrics after `/ssp` and `/reload`.
-- Tracks session duration, markers, scene changes, CPU, GPU, VRAM, RAM, and GPU temperature.
+- Automatically starts/finalizes a durable session with OBS and tracks duration, chat, activity, markers, scene changes, CPU, GPU, VRAM, RAM, and GPU temperature.
 - Combines system load with OBS render misses, encoder skips, and output congestion in a live headroom guard with actionable WoW-focused warnings.
 - Checks internet availability and latency every five seconds, timestamps outages, slow responses, instability, and recovery, and adds notable events to active session reports.
 - Watches WoW combat logs for boss pulls and victories, then automatically creates session markers and optionally saves the OBS Replay Buffer.
@@ -43,6 +43,10 @@ Developer references: [architecture](docs/ARCHITECTURE.md), [contributing rules]
 - Exports highlight timestamps and Twitch edit URLs as CSV.
 
 All session data stays on the computer under `%LOCALAPPDATA%\StreamSidekick\sessions`. This legacy folder name is intentionally retained so the rename does not lose existing reports or connections. Successful OBS, Twitch, and Spotify connections are encrypted for the current Windows account with Windows DPAPI and reused for automatic reconnects.
+
+The local service watches OBS stream output even when the dashboard browser tab is closed. Starting an
+OBS stream creates or resumes that broadcast's session; stopping it finalizes the report. **After
+stream > Previous streams** opens any retained session without replacing newer reports.
 
 ## Run it
 
@@ -174,6 +178,13 @@ The **StreamElements & multistream** card detects the plugin, remembers which de
 ### TikFinity TikTok chat
 
 TikFinity is an optional third-party bridge for displaying TikTok chat beside Twitch and YouTube in the dashboard. Install and open the TikFinity desktop app, then choose **Use TikFinity for TikTok chat? Yes** in Handler Settings. The Handler connects read-only to TikFinity's local Event API at `ws://127.0.0.1:21213/`; it does not log into TikTok or store TikTok credentials. Choosing No closes that local connection, clears the in-memory TikTok messages, and stops the browser status poll. TikFinity defaults to No for every new owner and tester installation.
+
+### OBS messages-only chat overlay
+
+Press **Copy OBS URL** in the Chat panel, then paste `http://127.0.0.1:5274/chat-overlay.html`
+into an OBS Browser Source. This local view renders only Twitch messages received through EventSub.
+It deliberately contains no Top Gifted Subs, Bits/Cheers leaderboard, login prompt, or promotional
+panels. The full official Twitch embed remains available inside the Handler dashboard.
 
 ### OBS music queue overlay
 

@@ -341,14 +341,17 @@
           <p class="helper">Changes apply directly to OBS. Live meters help you spot active sources before going live.</p>
         </section>
 
-        <!-- Both platforms remain in their official embeds, so the Handler never handles chat passwords. -->
+        <!-- Dashboard embeds stay separate from the messages-only OBS overlay. -->
         <section class="panel chat-panel" data-panel-id="chat" data-pages="during">
           <div class="panel-heading">
             <div>
               <span class="eyebrow">MULTIPLATFORM CHAT</span>
               <h3 id="chat-heading">Channel chat</h3>
             </div>
-            <button id="chat-popout" class="text-button">Game overlay ↗</button>
+            <div class="panel-heading-actions">
+              <button id="copy-chat-overlay" class="text-button">Copy OBS URL</button>
+              <button id="chat-popout" class="text-button">Game overlay ↗</button>
+            </div>
           </div>
           <div id="chat-frame-wrap" class="chat-frame-wrap empty-state">
             Add your Twitch channel name in Settings to display chat.
@@ -362,6 +365,7 @@
             <button id="test-chat-chime" class="text-button">Test</button>
           </div>
           <p id="chat-chime-status" class="helper">Checking viewer-safe OBS audio routing…</p>
+          <p class="helper">The OBS URL shows messages only. Twitch leaderboards and promotional panels stay off the broadcast.</p>
           <p class="helper">Enabled chats are displayed together. TikFinity adds read-only TikTok chat; bot replies and scheduled messages currently post to Twitch only.</p>
         </section>
 
@@ -776,14 +780,22 @@
               <span class="eyebrow">POST-STREAM REPORT</span>
               <h3>Session pulse</h3>
             </div>
-            <button class="text-button" id="load-latest">Latest</button>
+            <div class="panel-heading-actions">
+              <span id="report-viewing-label" class="tiny-status">No saved stream selected</span>
+              <button class="text-button" id="load-latest">Latest</button>
+            </div>
           </div>
           <div class="metrics">
             <div><strong id="metric-duration">0</strong><span>minutes</span></div>
             <div><strong id="metric-highlights">0</strong><span>highlights</span></div>
             <div><strong id="metric-scenes">0</strong><span>scene changes</span></div>
+            <div><strong id="metric-chat">0</strong><span>chat messages</span></div>
           </div>
           <div id="report-performance" class="report-performance">Performance diagnosis appears after a tracked session.</div>
+          <div class="report-section-heading">Top resource drains</div>
+          <div id="report-resource-drains" class="report-resource-drains empty-state">Process history will be retained for future streams.</div>
+          <div class="report-section-heading">Previous streams</div>
+          <div id="stream-history" class="stream-history empty-state">Completed streams will be saved here automatically.</div>
           <div class="report-section-heading">Post-stream checklist</div>
           <div id="post-stream-checklist" class="post-stream-checklist">
             <label><input type="checkbox" data-post-task="clips"> Export clip markers and open StreamLadder</label>

@@ -10,7 +10,7 @@ John's Twitch Handler is a lightweight Windows streaming companion created prima
 use on his own Twitch channel. John is the primary user and tester. The product should remain useful
 to him personally while also being simple enough for nontechnical testers to download and open.
 
-Current approved version: **.014**
+Current approved version: **.015**
 
 Source repository: <https://github.com/ReallyJohnSmith/johns-twitch-handler>
 
@@ -118,6 +118,7 @@ opens After stream.
 ### Live stream operation
 
 - Embedded Twitch chat and optional embedded YouTube live chat.
+- A messages-only local OBS chat Browser Source with no Twitch leaderboards or promotional panels.
 - Optional read-only TikTok chat through the locally running TikFinity desktop application.
 - Private quiet chat notification intended for the streamer, not the broadcast.
 - Activity feed highlighting follows, subscriptions, bits, raids, and other important events.
@@ -144,10 +145,13 @@ music licensing remain external considerations.
 ### Performance and reporting
 
 - CPU, RAM, GPU, VRAM, GPU temperature, and recent system history.
-- Top five resource-consuming process groups with plain-language suggestions.
+- Top five resource-consuming process groups with plain-language suggestions, archived at a low
+  frequency during tracked streams so historical reports can identify sustained drains.
 - Internet latency and failure monitoring with timestamped connection incidents.
 - OBS render, encoder, and dropped-frame health when connected.
 - Stream timeline for scene changes, markers, ads, Twitch events, and performance incidents.
+- Automatic OBS-driven session finalization plus Previous Streams history; reports remain local and
+  retain chat, activity, performance, timeline, and highlight data per broadcast.
 - Post-stream checklist, performance diagnosis, highlights, report export, and publishing queue.
 - Incoming and outgoing raid history with one-week, two-week, and one-month views.
 - Lightweight local viewer notes.

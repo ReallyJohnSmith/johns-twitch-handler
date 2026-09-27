@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Chat Overlay · John's Twitch Handler</title>
+  <style>
+    :root { color-scheme: dark; font-family: "Segoe UI", sans-serif; }
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; background: transparent; }
+    body { display: flex; align-items: end; padding: 16px; color: #fff; }
+    #messages { display: flex; width: 100%; max-height: 100%; flex-direction: column; justify-content: end; gap: 7px; overflow: hidden; }
+    .message { padding: 8px 11px; border-left: 3px solid #8b5cf6; background: rgba(10, 12, 18, .82); text-shadow: 0 1px 2px #000; line-height: 1.35; }
+    .message strong { margin-right: 7px; color: #bba5ff; }
+    .empty { display: none; }
+  </style>
+</head>
+<body>
+  <!-- This local OBS source renders EventSub messages only. Twitch leaderboard, Gifted Subs, Bits,
+       sign-in, and promotional panels are deliberately absent. -->
+  <div id="messages" aria-live="polite"></div>
+  <script>
+    const messages = document.querySelector("#messages");
+    const limit = Math.min(20, Math.max(3, Number(new URLSearchParams(location.search).get("limit")) || 8));
+    const escapeHtml = value => String(value ?? "").replace(/[&<>'"]/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", "'": "&#39;", '"': "&quot;" }[char]));
+
+    async function refresh() {
+      try {
+        const response = await fetch("/api/chat/messages", { cache: "no-store" });
+        if (!response.ok) return;
+        const feed = await response.json();
+        const rows = Array.isArray(feed.messages) ? feed.messages.slice(-limit) : [];
+        messages.innerHTML = rows.map(message => `<div class="message"><strong>${escapeHtml(message.userName)}</strong><span>${escapeHtml(message.text)}</span></div>`).join("");
+      } catch {
+        // OBS may request one frame while the Handler restarts. Staying transparent is preferable
+        // to putting a technical error on the viewer-facing broadcast.
+      }
+    }
+    refresh();
+    window.setInterval(refresh, 1200);
+  </script>
+</body>
+</html>

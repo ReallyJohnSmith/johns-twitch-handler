@@ -29,7 +29,9 @@
     const channel = new URLSearchParams(location.search).get("channel") || "";
     const youtube = new URLSearchParams(location.search).get("youtube") || "";
     const frames = [];
-    if (channel) frames.push(`<section><span>TWITCH</span><iframe title="Twitch game chat" src="https://www.twitch.tv/embed/${encodeURIComponent(channel)}/chat?parent=${encodeURIComponent(location.hostname)}&darkpopout"></iframe></section>`);
+    // Use the Handler's messages-only feed instead of Twitch's embedded room. Twitch owns the
+    // embedded room's leaderboard/promotional panels, which cannot be hidden across an iframe.
+    if (channel) frames.push('<section><span>TWITCH</span><iframe title="Twitch game chat" src="/chat-overlay.html?limit=20"></iframe></section>');
     if (youtube) frames.push(`<section><span>YOUTUBE</span><iframe title="YouTube game chat" src="https://www.youtube.com/live_chat?v=${encodeURIComponent(youtube)}&embed_domain=${encodeURIComponent(location.hostname)}&dark_theme=1"></iframe></section>`);
     document.querySelector("#title").textContent = frames.length > 1 ? "Twitch + YouTube chat" : channel ? `${channel} chat` : "YouTube chat";
     document.querySelector("#chats").style.gridTemplateRows = `repeat(${Math.max(1, frames.length)}, minmax(0, 1fr))`;

@@ -32,7 +32,9 @@ public sealed class StreamSession
     public DateTimeOffset? EndedAt { get; set; }
     public List<StreamMarker> Markers { get; set; } = [];
     public List<SessionActivity> Activities { get; set; } = [];
+    public List<SessionChatMessage> ChatMessages { get; set; } = [];
     public List<PerformanceSample> PerformanceSamples { get; set; } = [];
+    public List<SessionResourceSnapshot> ResourceSnapshots { get; set; } = [];
 }
 
 public sealed class StreamMarker
@@ -55,6 +57,16 @@ public sealed class SessionActivity
     public string Detail { get; set; } = "";
 }
 
+// Chat is public stream activity, but it remains in the same local-only session file as the rest
+// of the report. We intentionally do not retain Twitch user IDs or account credentials here.
+public sealed class SessionChatMessage
+{
+    public string Id { get; set; } = Guid.NewGuid().ToString("N");
+    public DateTimeOffset At { get; set; } = DateTimeOffset.UtcNow;
+    public string UserName { get; set; } = "Viewer";
+    public string Text { get; set; } = "";
+}
+
 // Reports contain calculated rollups so the browser does not need to reproduce backend diagnostics.
 public sealed record SessionReport(
     Guid Id,
@@ -64,6 +76,7 @@ public sealed record SessionReport(
     double DurationMinutes,
     int HighlightCount,
     int SceneChangeCount,
+    int ChatMessageCount,
     double AverageCpuPercent,
     double PeakCpuPercent,
     double AverageGpuPercent,
@@ -72,7 +85,22 @@ public sealed record SessionReport(
     string PerformanceSummary,
     IReadOnlyList<StreamMarker> Markers,
     IReadOnlyList<SessionActivity> Activities,
+    IReadOnlyList<SessionChatMessage> ChatMessages,
+    IReadOnlyList<SessionResourceSummary> TopResourceDrains,
     IReadOnlyList<SessionTimelineItem> Timeline);
+
+// History rows stay deliberately small so opening the After Stream page does not transfer every
+// performance sample from every previous broadcast.
+public sealed record SessionHistorySummary(
+    Guid Id,
+    string Title,
+    DateTimeOffset StartedAt,
+    DateTimeOffset? EndedAt,
+    double DurationMinutes,
+    int HighlightCount,
+    int ChatMessageCount,
+    bool Completed,
+    string PerformanceSummary);
 
 /// <summary>A normalized item lets the report mix markers, Twitch events, and performance incidents.</summary>
 public sealed record SessionTimelineItem(
@@ -101,6 +129,20 @@ public sealed record ResourceDrain(
     int ProcessCount,
     double CpuPercent,
     double MemoryMb,
+    string Assessment,
+    string Recommendation);
+
+public sealed record SessionResourceSnapshot(
+    DateTimeOffset At,
+    IReadOnlyList<ResourceDrain> Drains);
+
+public sealed record SessionResourceSummary(
+    string Name,
+    int Observations,
+    double AverageCpuPercent,
+    double PeakCpuPercent,
+    double AverageMemoryMb,
+    double PeakMemoryMb,
     string Assessment,
     string Recommendation);
 

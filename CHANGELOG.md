@@ -1,5 +1,14 @@
 # John's Twitch Handler release history
 
+## .015 - 2026-09-27
+
+- Added a messages-only Twitch chat Browser Source that omits Top Gifted Subs, Bits/Cheers leaderboards, promotional panels, and login chrome from the broadcast.
+- Moved OBS stream start/end tracking into the local service so sessions finalize even when the dashboard tab is closed or unattended.
+- Added automatic one-minute checkpoints for current performance and chat data without writing the full report every sample.
+- Retains a lightweight once-per-minute view of the top process drains for later cause analysis.
+- Added Previous Streams with per-session start/end time, duration, chat count, activity, performance, timeline, and highlight review.
+- Kept each stream in its own local JSON report and resume a recent unfinished session after a Handler restart.
+
 ## .014 - 2026-09-22
 
 - Replaced the unreliable native Look and Theme dropdowns with one clear **Appearance** button.

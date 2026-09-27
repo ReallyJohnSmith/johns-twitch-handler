@@ -316,6 +316,7 @@ function updateDashboardBorder() {
 
 async function refreshPreflight() {
   try {
+    const wasTracking = state.sessionActive;
     state.preflight = await api(`/api/preflight?spotifyEnabled=${state.spotifyEnabled}&tangiaEnabled=${state.tangiaEnabled}&streamElementsEnabled=${state.streamElementsEnabled}&streamElementsConfirmed=${state.streamElementsConfirmed}&tikFinityEnabled=${state.tikFinityEnabled}`);
     state.sessionActive = state.preflight.sessionActive;
     setCheck("#check-obs", state.preflight.obsConnected, state.preflight.obsConnected ? "Connected and ready" : "Connection required", state.preflight.obsConnected ? "Ready" : "Connect");
@@ -374,6 +375,11 @@ async function refreshPreflight() {
     updateDashboardBorder();
     renderSession();
     renderChatCommands();
+    if (wasTracking && !state.sessionActive) {
+      await Promise.all([refreshReport(true), refreshStreamHistory()]);
+      toast("OBS ended the stream. Your session was saved automatically.");
+      window.setTimeout(revealPostStreamReport, 100);
+    }
   } catch (error) {
     state.preflight = null;
     updateDashboardBorder();
@@ -384,12 +390,9 @@ async function refreshPreflight() {
 
 async function refreshObs() {
   try {
-    const wasLive = state.obs?.streamActive === true;
     const snapshot = await api("/api/obs/status");
     state.obs = snapshot;
     renderObs();
-    if (wasLive && snapshot.connected && snapshot.streamActive === false && state.sessionActive)
-      endTrackedSession(true);
   } catch (error) {
     state.obs = { connected: false, scenes: [], currentScene: null, error: error.message };
     renderObs();
@@ -709,7 +712,22 @@ function renderReport(report) {
   $("#metric-duration").textContent = report ? Math.round(report.durationMinutes) : "0";
   $("#metric-highlights").textContent = report?.highlightCount ?? "0";
   $("#metric-scenes").textContent = report?.sceneChangeCount ?? "0";
+  $("#metric-chat").textContent = report?.chatMessageCount ?? "0";
+  $("#report-viewing-label").textContent = report
+    ? `${new Date(report.startedAt).toLocaleDateString()} · ${report.endedAt ? "Saved" : "In progress"}`
+    : "No saved stream selected";
   $("#report-performance").textContent = report?.performanceSummary || "Performance diagnosis appears after a tracked session.";
+  const resourceList = $("#report-resource-drains");
+  if (!report?.topResourceDrains?.length) {
+    resourceList.className = "report-resource-drains empty-state";
+    resourceList.textContent = "This older report did not retain process history. New streams will.";
+  } else {
+    resourceList.className = "report-resource-drains";
+    resourceList.innerHTML = report.topResourceDrains.map(drain => `<div class="report-resource-row">
+      <div><strong>${escapeHtml(drain.name)}</strong><small>${escapeHtml(drain.assessment)} · ${escapeHtml(drain.recommendation)}</small></div>
+      <span>${drain.averageCpuPercent}% avg CPU<br>${Math.round(drain.averageMemoryMb)} MB avg</span>
+    </div>`).join("");
+  }
   renderPostStreamChecklist(report);
   renderStreamTimeline(report);
   const list = $("#marker-list");
@@ -741,6 +759,40 @@ function renderReport(report) {
     }).join("");
   }
   renderSimpleExperience();
+}
+
+function renderStreamHistory(history) {
+  const list = $("#stream-history");
+  if (!history?.length) {
+    list.className = "stream-history empty-state";
+    list.textContent = "Completed streams will be saved here automatically.";
+    return;
+  }
+  list.className = "stream-history";
+  list.innerHTML = history.map(report => {
+    const when = new Date(report.startedAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+    const stateLabel = report.completed ? "Saved" : "Interrupted";
+    return `<div class="stream-history-row">
+      <div><strong>${escapeHtml(report.title)}</strong><small>${escapeHtml(when)} · ${Math.round(report.durationMinutes)} min · ${report.chatMessageCount || 0} chats</small></div>
+      <span class="history-state">${stateLabel}</span>
+      <button class="secondary" data-open-report="${escapeHtml(report.id)}">Open</button>
+    </div>`;
+  }).join("");
+}
+
+async function refreshStreamHistory() {
+  try { renderStreamHistory(await api("/api/reports?limit=30")); }
+  catch (error) {
+    $("#stream-history").className = "stream-history empty-state";
+    $("#stream-history").textContent = error.message;
+  }
+}
+
+async function openSavedReport(id) {
+  try {
+    renderReport(await api(`/api/reports/${encodeURIComponent(id)}`));
+    toast("Saved stream opened.");
+  } catch (error) { toast(error.message, true); }
 }
 
 const clipPublishingStorageKey = "johns-handler.clip-publishing";
@@ -1317,12 +1369,11 @@ async function openGameChat() {
 
   try {
     // Document Picture-in-Picture is a Chromium feature whose window remains above a borderless
-    // game. Twitch chat stays in its own iframe and does not add capture load to OBS.
+    // game. The local Twitch view contains messages only and does not add capture load to OBS.
     const pipWindow = await documentPictureInPicture.requestWindow({ width: 420, height: 680 });
-    const parent = window.location.hostname;
     const frames = [];
-    if (channel) frames.push(`<section><span>TWITCH</span><iframe title="${escapeHtml(channel)} Twitch chat" src="https://www.twitch.tv/embed/${encodeURIComponent(channel)}/chat?parent=${encodeURIComponent(parent)}&darkpopout"></iframe></section>`);
-    if (youtube) frames.push(`<section><span>YOUTUBE</span><iframe title="YouTube live chat" src="https://www.youtube.com/live_chat?v=${encodeURIComponent(youtube)}&embed_domain=${encodeURIComponent(parent)}&dark_theme=1"></iframe></section>`);
+    if (channel) frames.push(`<section><span>TWITCH</span><iframe title="${escapeHtml(channel)} Twitch chat" src="/chat-overlay.html?limit=20"></iframe></section>`);
+    if (youtube) frames.push(`<section><span>YOUTUBE</span><iframe title="YouTube live chat" src="https://www.youtube.com/live_chat?v=${encodeURIComponent(youtube)}&embed_domain=${encodeURIComponent(window.location.hostname)}&dark_theme=1"></iframe></section>`);
     pipWindow.document.head.innerHTML = `<title>Stream chat</title><style>
       *{box-sizing:border-box}body{display:grid;grid-template-rows:auto 1fr;height:100vh;margin:0;overflow:hidden;background:#0e1118;color:#f5f7fb;font:11px "Segoe UI",sans-serif}
       header{display:flex;align-items:center;gap:8px;padding:7px 9px;border-bottom:1px solid #2a3040;background:#11141c}header strong{margin-right:auto}label{display:flex;gap:5px;align-items:center;color:#9aa3b5}input{width:72px;accent-color:#9867ff}.chats{display:grid;grid-template-rows:repeat(${frames.length},minmax(0,1fr));gap:1px;background:#2a3040;min-height:0}section{display:grid;grid-template-rows:22px 1fr;min-height:0;background:#0e1118}section span{display:flex;align-items:center;padding:0 7px;color:#9aa3b5;font-size:9px}iframe{width:100%;height:100%;border:0;opacity:.92}
@@ -3146,6 +3197,7 @@ async function endTrackedSession(automatic) {
     saveManualPreflightItems();
     renderManualPreflightItems();
     renderReport(report);
+    await refreshStreamHistory();
     renderSession();
     await refreshPreflight();
     toast(automatic ? "OBS ended the stream. Your post-stream report is ready." : "Session finished. Your report is ready.");
@@ -3537,6 +3589,15 @@ $("#streamelements-confirmed").addEventListener("change", async event => {
   await refreshPreflight();
 });
 $("#chat-popout").addEventListener("click", openGameChat);
+$("#copy-chat-overlay").addEventListener("click", async () => {
+  const url = `${window.location.origin}/chat-overlay.html`;
+  try {
+    await navigator.clipboard.writeText(url);
+    toast("Messages-only OBS chat URL copied.");
+  } catch {
+    window.prompt("Copy this OBS Browser Source URL:", url);
+  }
+});
 $("#chat-chime-enabled").addEventListener("change", saveChatChime);
 $("#chat-chime-volume").addEventListener("input", event => {
   $("#chat-chime-volume-value").textContent = `${Number(event.target.value).toFixed(0).replace("-", "−")} dB`;
@@ -3577,6 +3638,10 @@ $("#unmute-microphone").addEventListener("click", async () => {
   } catch (error) { toast(error.message, true); }
 });
 $("#load-latest").addEventListener("click", () => refreshReport(true));
+$("#stream-history").addEventListener("click", event => {
+  const button = event.target.closest("[data-open-report]");
+  if (button) openSavedReport(button.dataset.openReport);
+});
 $("#post-stream-checklist").addEventListener("change", event => {
   if (!event.target.matches("[data-post-task]")) return;
   const key = event.currentTarget.dataset.storageKey;
@@ -4160,7 +4225,7 @@ async function boot() {
   $("#youtube-live-url").value = state.youtubeVideoId ? `https://www.youtube.com/watch?v=${state.youtubeVideoId}` : "";
   $("#raid-range").value = String([7, 14, 31].includes(state.raidDays) ? state.raidDays : 31);
   await loadSetupConfiguration();
-  const startupTasks = [refreshPreflight(), refreshObs(), refreshAudio(), refreshReport(false), refreshPerformance(), loadProfileAnalysis(), refreshOptimizerStatus(), refreshAlerts(), refreshChatChime(), refreshSpotify(), refreshTangia(), refreshStreamElements(), refreshTikFinity(), refreshAds(), refreshChatCommands(), refreshAutomations(), refreshRaids(true), refreshViewerNotes()];
+  const startupTasks = [refreshPreflight(), refreshObs(), refreshAudio(), refreshReport(false), refreshStreamHistory(), refreshPerformance(), loadProfileAnalysis(), refreshOptimizerStatus(), refreshAlerts(), refreshChatChime(), refreshSpotify(), refreshTangia(), refreshStreamElements(), refreshTikFinity(), refreshAds(), refreshChatCommands(), refreshAutomations(), refreshRaids(true), refreshViewerNotes()];
   // WoW tools are temporarily out of the product. Keeping their work out of this list also prevents
   // hidden cards from scanning game files or polling combat logs in the background.
   if (state.setup.wowToolsEnabled === true) {

@@ -16,6 +16,7 @@ public sealed class SessionStore
     private readonly SemaphoreSlim _gate = new(1, 1);
     private readonly string _dataDirectory;
     private StreamSession? _active;
+    private int _samplesSinceCheckpoint;
 
     public SessionStore(IConfiguration configuration)
     {
@@ -39,12 +40,42 @@ public sealed class SessionStore
                 return _active;
             }
 
-            _active = new StreamSession
+            _active = NewSession(title);
+            await SaveInternalAsync(_active, cancellationToken);
+            return _active;
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
+    /// Starts OBS-driven tracking, or resumes a recently checkpointed session after a Handler
+    /// restart. The age limit prevents an old unfinished report from being attached to a new show.
+    /// </summary>
+    public async Task<StreamSession> StartOrResumeRecentAsync(
+        string? title,
+        CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_active is not null) return _active;
+
+            var newest = (await ReadSessionsInternalAsync(cancellationToken))
+                .Where(session => session.EndedAt is null
+                    && DateTimeOffset.UtcNow - session.StartedAt <= TimeSpan.FromHours(18))
+                .OrderByDescending(session => session.StartedAt)
+                .FirstOrDefault();
+            if (newest is not null)
             {
-                Title = string.IsNullOrWhiteSpace(title)
-                    ? $"Stream {DateTimeOffset.Now:MMM d, yyyy h:mm tt}"
-                    : title.Trim()
-            };
+                _active = newest;
+                _samplesSinceCheckpoint = 0;
+                return newest;
+            }
+
+            _active = NewSession(title);
             await SaveInternalAsync(_active, cancellationToken);
             return _active;
         }
@@ -140,8 +171,36 @@ public sealed class SessionStore
         }
     }
 
+    public async Task AddChatMessageAsync(
+        TwitchChatMessage message,
+        CancellationToken cancellationToken = default)
+    {
+        if (_active is null) return;
+
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_active is null) return;
+            _active.ChatMessages.Add(new SessionChatMessage
+            {
+                Id = message.Id,
+                At = message.At,
+                UserName = message.UserName,
+                Text = message.Text
+            });
+            // Bound unusually busy or very long broadcasts without retaining Twitch account IDs.
+            if (_active.ChatMessages.Count > 10_000)
+                _active.ChatMessages.RemoveRange(0, 500);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     public async Task RecordPerformanceSampleAsync(
         PerformanceSample sample,
+        IReadOnlyList<ResourceDrain>? resourceDrains = null,
         CancellationToken cancellationToken = default)
     {
         if (_active is null)
@@ -162,6 +221,24 @@ public sealed class SessionStore
             if (_active.PerformanceSamples.Count > 14_400)
             {
                 _active.PerformanceSamples.RemoveRange(0, 1_000);
+            }
+
+            // Process enumeration runs every 15 seconds, but one archived observation per minute is
+            // enough to identify sustained drains later without multiplying report size and disk I/O.
+            if (resourceDrains is { Count: > 0 }
+                && (_active.ResourceSnapshots.Count == 0
+                    || sample.At - _active.ResourceSnapshots[^1].At >= TimeSpan.FromMinutes(1)))
+            {
+                _active.ResourceSnapshots.Add(new SessionResourceSnapshot(sample.At, resourceDrains));
+            }
+
+            // A one-minute checkpoint protects performance and chat data without rewriting a large
+            // JSON report every three seconds on the same PC that is running the game and OBS.
+            _samplesSinceCheckpoint++;
+            if (_samplesSinceCheckpoint >= 20)
+            {
+                await SaveInternalAsync(_active, cancellationToken);
+                _samplesSinceCheckpoint = 0;
             }
         }
         finally
@@ -184,6 +261,7 @@ public sealed class SessionStore
             await SaveInternalAsync(_active, cancellationToken);
             var report = BuildReport(_active);
             _active = null;
+            _samplesSinceCheckpoint = 0;
             return report;
         }
         finally
@@ -197,7 +275,7 @@ public sealed class SessionStore
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            return _active is null ? null : BuildReport(_active);
+            return _active is null ? null : BuildReport(_active, isActive: true);
         }
         finally
         {
@@ -207,23 +285,44 @@ public sealed class SessionStore
 
     public async Task<SessionReport?> LatestReportAsync(CancellationToken cancellationToken = default)
     {
-        if (!Directory.Exists(_dataDirectory))
-        {
-            return null;
-        }
+        var sessions = await ReadSessionsInternalAsync(cancellationToken);
+        var latest = sessions
+            .Where(session => session.EndedAt is not null)
+            .OrderByDescending(session => session.StartedAt)
+            .FirstOrDefault()
+            ?? sessions.OrderByDescending(session => session.StartedAt).FirstOrDefault();
+        return latest is null ? null : BuildReport(latest);
+    }
 
-        var latestPath = Directory.EnumerateFiles(_dataDirectory, "*.json")
-            .Select(path => new FileInfo(path))
-            .OrderByDescending(file => file.LastWriteTimeUtc)
-            .FirstOrDefault()?.FullName;
+    public async Task<IReadOnlyList<SessionHistorySummary>> ListReportsAsync(
+        int limit = 30,
+        CancellationToken cancellationToken = default)
+    {
+        var sessions = await ReadSessionsInternalAsync(cancellationToken);
+        return sessions
+            .OrderByDescending(session => session.StartedAt)
+            .Take(Math.Clamp(limit, 1, 100))
+            .Select(session =>
+            {
+                var report = BuildReport(session);
+                return new SessionHistorySummary(
+                    report.Id,
+                    report.Title,
+                    report.StartedAt,
+                    report.EndedAt,
+                    report.DurationMinutes,
+                    report.HighlightCount,
+                    report.ChatMessageCount,
+                    report.EndedAt is not null,
+                    report.PerformanceSummary);
+            })
+            .ToList();
+    }
 
-        if (latestPath is null)
-        {
-            return null;
-        }
-
-        await using var stream = File.OpenRead(latestPath);
-        var session = await JsonSerializer.DeserializeAsync<StreamSession>(stream, JsonOptions, cancellationToken);
+    public async Task<SessionReport?> ReportAsync(Guid id, CancellationToken cancellationToken = default)
+    {
+        var session = (await ReadSessionsInternalAsync(cancellationToken))
+            .FirstOrDefault(candidate => candidate.Id == id);
         return session is null ? null : BuildReport(session);
     }
 
@@ -247,9 +346,43 @@ public sealed class SessionStore
         }
     }
 
-    private static SessionReport BuildReport(StreamSession session)
+    private async Task<IReadOnlyList<StreamSession>> ReadSessionsInternalAsync(CancellationToken cancellationToken)
     {
-        var end = session.EndedAt ?? DateTimeOffset.UtcNow;
+        if (!Directory.Exists(_dataDirectory)) return [];
+
+        var sessions = new List<StreamSession>();
+        foreach (var path in Directory.EnumerateFiles(_dataDirectory, "*.json"))
+        {
+            try
+            {
+                await using var stream = File.OpenRead(path);
+                var session = await JsonSerializer.DeserializeAsync<StreamSession>(stream, JsonOptions, cancellationToken);
+                if (session is not null) sessions.Add(session);
+            }
+            catch (JsonException)
+            {
+                // A damaged legacy file must not hide the remaining stream history.
+            }
+            catch (IOException)
+            {
+                // A checkpoint may be replacing this file; the next history refresh will retry it.
+            }
+        }
+        return sessions;
+    }
+
+    private static StreamSession NewSession(string? title) => new()
+    {
+        Title = string.IsNullOrWhiteSpace(title)
+            ? $"Stream {DateTimeOffset.Now:MMM d, yyyy h:mm tt}"
+            : title.Trim()
+    };
+
+    private static SessionReport BuildReport(StreamSession session, bool isActive = false)
+    {
+        // An old interrupted file should stop at its last recorded observation, not grow in duration
+        // forever. Only the in-memory current session uses the present time.
+        var end = session.EndedAt ?? (isActive ? DateTimeOffset.UtcNow : LastObservedAt(session));
         var samples = session.PerformanceSamples;
         var averageCpu = samples.Count == 0 ? 0 : samples.Average(sample => sample.CpuPercent);
         var peakCpu = samples.Count == 0 ? 0 : samples.Max(sample => sample.CpuPercent);
@@ -264,6 +397,7 @@ public sealed class SessionStore
             Math.Round(Math.Max(0, (end - session.StartedAt).TotalMinutes), 1),
             session.Markers.Count,
             session.Activities.Count(activity => activity.Type == "scene"),
+            session.ChatMessages.Count,
             Math.Round(averageCpu, 1),
             Math.Round(peakCpu, 1),
             Math.Round(averageGpu, 1),
@@ -272,8 +406,41 @@ public sealed class SessionStore
             DescribePerformance(averageCpu, peakCpu, averageGpu, peakGpu, peakVram),
             session.Markers.OrderBy(marker => marker.OffsetSeconds).ToList(),
             session.Activities.OrderBy(activity => activity.At).ToList(),
+            session.ChatMessages.OrderBy(message => message.At).ToList(),
+            BuildResourceSummary(session),
             BuildTimeline(session));
     }
+
+    private static DateTimeOffset LastObservedAt(StreamSession session)
+    {
+        var latest = session.StartedAt;
+        if (session.Markers.Count > 0) latest = Max(latest, session.Markers.Max(marker => marker.CreatedAt));
+        if (session.Activities.Count > 0) latest = Max(latest, session.Activities.Max(activity => activity.At));
+        if (session.ChatMessages.Count > 0) latest = Max(latest, session.ChatMessages.Max(message => message.At));
+        if (session.PerformanceSamples.Count > 0) latest = Max(latest, session.PerformanceSamples.Max(sample => sample.At));
+        if (session.ResourceSnapshots.Count > 0) latest = Max(latest, session.ResourceSnapshots.Max(sample => sample.At));
+        return latest;
+
+        static DateTimeOffset Max(DateTimeOffset left, DateTimeOffset right) => left >= right ? left : right;
+    }
+
+    private static IReadOnlyList<SessionResourceSummary> BuildResourceSummary(StreamSession session) =>
+        session.ResourceSnapshots
+            .SelectMany(snapshot => snapshot.Drains)
+            .GroupBy(drain => drain.Name, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new SessionResourceSummary(
+                group.Key,
+                group.Count(),
+                Math.Round(group.Average(drain => drain.CpuPercent), 1),
+                Math.Round(group.Max(drain => drain.CpuPercent), 1),
+                Math.Round(group.Average(drain => drain.MemoryMb)),
+                Math.Round(group.Max(drain => drain.MemoryMb)),
+                group.Last().Assessment,
+                group.Last().Recommendation))
+            .OrderByDescending(item => item.Observations)
+            .ThenByDescending(item => item.AverageCpuPercent)
+            .Take(5)
+            .ToList();
 
     private static IReadOnlyList<SessionTimelineItem> BuildTimeline(StreamSession session)
     {

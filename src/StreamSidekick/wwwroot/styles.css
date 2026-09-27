@@ -645,7 +645,7 @@ button:disabled { cursor: not-allowed; opacity: .45; transform: none; }
 .optimizer-action-message { min-height: 32px; margin-top: 10px; color: var(--muted); font-size: 10px; line-height: 1.45; }
 .report-performance { margin: 0 0 12px; }
 .empty-state { display: grid; place-items: center; color: var(--muted); font-size: 12px; }
-.metrics { display: grid; grid-template-columns: repeat(3, 1fr); margin-bottom: 15px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.metrics { display: grid; grid-template-columns: repeat(4, 1fr); margin-bottom: 15px; border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 .metrics div { padding: 14px; border-right: 1px solid var(--line); }
 .metrics div:last-child { border-right: 0; }
 .metrics strong, .metrics span { display: block; }
@@ -656,6 +656,17 @@ button:disabled { cursor: not-allowed; opacity: .45; transform: none; }
 .marker-time { color: var(--purple); font-variant-numeric: tabular-nums; }
 .marker-row small { display: block; margin-top: 2px; color: var(--muted); }
 .marker-row a { color: var(--green); text-decoration: none; }
+.stream-history { max-height: 220px; min-height: 76px; overflow: auto; border-top: 1px solid var(--line); }
+.stream-history-row { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; align-items: center; gap: 10px; padding: 9px 2px; border-bottom: 1px solid var(--line); }
+.stream-history-row strong, .stream-history-row small { display: block; }
+.stream-history-row small { margin-top: 2px; color: var(--muted); font-size: 10px; }
+.stream-history-row .history-state { color: var(--muted); font-size: 10px; }
+.stream-history-row button { padding: 6px 9px; }
+.report-resource-drains { max-height: 190px; min-height: 64px; overflow: auto; }
+.report-resource-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 10px; padding: 8px 2px; border-bottom: 1px solid var(--line); }
+.report-resource-row strong, .report-resource-row small { display: block; }
+.report-resource-row small { margin-top: 2px; color: var(--muted); font-size: 10px; line-height: 1.35; }
+.report-resource-row span { color: var(--muted); font-size: 10px; text-align: right; }
 .clip-publishing-queue { display: grid; gap: 7px; max-height: 260px; overflow: auto; }
 .clip-publish-row { display: grid; grid-template-columns: minmax(160px, 1fr) auto auto; align-items: center; gap: 10px; padding: 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--inner-surface); }
 .clip-publish-title { min-width: 0; }

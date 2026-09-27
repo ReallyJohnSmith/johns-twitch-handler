@@ -195,6 +195,17 @@ public sealed class ObsWebSocketClient(SecureConnectionStore connectionStore) : 
     public Task SaveReplayBufferAsync(CancellationToken cancellationToken = default) =>
         RequestAsync("SaveReplayBuffer", null, cancellationToken);
 
+    /// <summary>
+    /// Reads only the OBS stream-output flag. The session lifecycle uses this inexpensive request as
+    /// a safety net in case a start/stop event occurred while OBS was reconnecting.
+    /// </summary>
+    public async Task<bool> GetStreamActiveAsync(CancellationToken cancellationToken = default)
+    {
+        if (!IsConnected) return false;
+        var data = await RequestAsync("GetStreamStatus", null, cancellationToken);
+        return data.TryGetProperty("outputActive", out var active) && active.GetBoolean();
+    }
+
     public async Task<ObsAudioMixerSnapshot> GetAudioMixerAsync(CancellationToken cancellationToken = default)
     {
         if (!IsConnected)
