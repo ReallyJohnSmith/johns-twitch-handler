@@ -112,8 +112,9 @@ opens After stream.
 - Reversible, performance-first OBS recommendation centered on 720p at 30 FPS using NVENC.
 - Five dashboard color themes.
 - Movable, resizable, collapsible, floatable, and redockable panels with saved layouts, keyboard movement, and OBS-style tab stacks.
+- New installations start with a consistent docked layout, paired panel sizes, and 12-pixel spacing. Reset layout asks before restoring panel positions, sizes, page assignments, and stacks without changing connections, themes, or Simple-mode choices. Existing layouts are not migrated automatically.
 - Per-panel **Add to Simple** controls so users can expose selected Advanced tools without enabling the full Advanced interface.
-- A saved **Appearance** panel with direct buttons for the current flat **Broadcast Console**, the earlier rounded **Vibe Dashboard**, and five color themes; it must never fork application behavior or integration state.
+- A saved **Appearance** panel with two-column choices for the flat **Broadcast Console**, rounded **Vibe Dashboard**, squared amber **Tactical Console**, and five color themes; it must never fork application behavior or integration state. Fresh installations default to Broadcast, Ocean, and the RPG game profile.
 
 ### Live stream operation
 
@@ -123,6 +124,8 @@ opens After stream.
 - Private quiet chat notification intended for the streamer, not the broadcast.
 - Activity feed highlighting follows, subscriptions, bits, raids, and other important events.
 - Stream markers, OBS Replay Buffer saves, Twitch clip creation, and StreamLadder handoff.
+- Persistent FPS and RPG game profiles, with kill/death session markers and counters in the FPS profile.
+- Optional Wardogs post-stream results for community servers using a locally saved SteamID64/server identifier and the no-key WARDOGS Tracker API. A baseline/final snapshot delta is stored with the stream report; official-server and exact event-timestamp support are not implied.
 - Ad-break timer with start and completion messages in Twitch chat.
 - Tangia OBS Browser Source controls, volume control, mute, reload, and Boss Focus support.
 - Chat command manager for commands such as `!discord`, `!spec`, and `!build`.
@@ -135,6 +138,7 @@ opens After stream.
 - Twitch Channel Point song requests with viewer success or failure feedback.
 - Built-in `!song` and `!playing` commands that can provide the current track link.
 - Viewer-facing OBS Browser Source showing the current song and upcoming queue.
+- A remembered Show/Hide overlay button hides only the song/queue graphics across OBS scenes. Playback, requests, preflight, and Boss Focus notices remain available; the hidden overlay stops polling Spotify.
 - Song-request notifications should not add an extra audible alert to the broadcast.
 - Spotify is optional for testers and defaults to No in the simple tester package.
 

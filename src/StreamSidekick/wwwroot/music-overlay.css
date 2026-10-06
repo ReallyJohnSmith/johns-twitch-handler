@@ -23,6 +23,11 @@ body { padding: 18px; color: var(--text); }
   box-shadow: 0 16px 50px rgba(0, 0, 0, .38);
 }
 
+/* Hide only the music graphics. Boss Focus must still explain why Tangia is muted. */
+.music-hidden #music-content { display: none; }
+.music-hidden .overlay { padding: 0; border: 0; background: transparent; box-shadow: none; }
+.music-hidden .boss-focus-banner.active { margin-bottom: 0; }
+
 .boss-focus-banner {
   display: grid;
   grid-template-columns: 18px minmax(0, 1fr);

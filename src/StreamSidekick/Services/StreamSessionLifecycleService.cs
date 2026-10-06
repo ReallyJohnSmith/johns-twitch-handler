@@ -9,6 +9,7 @@ namespace StreamSidekick.Services;
 public sealed class StreamSessionLifecycleService(
     ObsWebSocketClient obs,
     SessionStore sessions,
+    WardogsService wardogs,
     ILogger<StreamSessionLifecycleService> logger) : BackgroundService
 {
     private readonly SemaphoreSlim _stateGate = new(1, 1);
@@ -68,11 +69,24 @@ public sealed class StreamSessionLifecycleService(
                 if (!_observedLiveOutput)
                 {
                     var alreadyTracking = sessions.HasActiveSession;
-                    await sessions.StartOrResumeRecentAsync(null, cancellationToken);
+                    var session = await sessions.StartOrResumeRecentAsync(null, cancellationToken);
                     await sessions.AddActivityAsync(
                         "live",
                         alreadyTracking ? "OBS stream started; existing session continued." : "OBS stream started; session tracking began automatically.",
                         cancellationToken);
+                    if (wardogs.Configured && session.Wardogs?.Baseline is null)
+                    {
+                        try
+                        {
+                            await sessions.SetActiveWardogsBaselineAsync(
+                                await wardogs.FetchSnapshotAsync(cancellationToken),
+                                cancellationToken);
+                        }
+                        catch (Exception exception) when (exception is not OperationCanceledException)
+                        {
+                            logger.LogWarning(exception, "Could not capture the Wardogs starting baseline.");
+                        }
+                    }
                 }
                 _observedLiveOutput = true;
                 return;

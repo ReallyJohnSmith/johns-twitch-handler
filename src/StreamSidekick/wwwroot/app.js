@@ -14,6 +14,7 @@ const state = {
   optimizerBusy: false,
   autoEndingSession: false,
   sessionActive: false,
+  wardogs: null,
   channelName: localStorage.getItem("streamsidekick.channel") || "",
   wow: null,
   wowPresets: [],
@@ -22,6 +23,8 @@ const state = {
   internet: null,
   spotify: null,
   spotifyEnabled: true,
+  musicOverlayVisible: null,
+  musicOverlayBusy: false,
   spotifyResults: [],
   tangia: null,
   tangiaEnabled: true,
@@ -50,9 +53,58 @@ const state = {
     latency: 32,
     timeline: []
   },
+  gameProfile: localStorage.getItem("streamsidekick.gameProfile") === "fps" ? "fps" : "rpg",
   wowEditionId: localStorage.getItem("streamsidekick.wowEdition") || "classic",
   wowProfileId: localStorage.getItem("streamsidekick.wowProfile") || ""
 };
+
+const gameProfileDefinitions = {
+  fps: {
+    name: "FPS profile",
+    summary: "Kill, death, loadout, and match-focused tools",
+    markerPlaceholder: "What happened in the match?"
+  },
+  rpg: {
+    name: "RPG profile",
+    summary: "Character, encounter, and progression tools",
+    markerPlaceholder: "What happened in the adventure?"
+  }
+};
+
+function applyGameProfile(profile, options = {}) {
+  const selected = Object.hasOwn(gameProfileDefinitions, profile) ? profile : "rpg";
+  const definition = gameProfileDefinitions[selected];
+  state.gameProfile = selected;
+  document.body.dataset.gameProfile = selected;
+  $$('[data-game-profile]').forEach(button => {
+    const active = button.dataset.gameProfile === selected;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", String(active));
+  });
+  $("#game-profile-name").textContent = definition.name;
+  $("#game-profile-summary").textContent = definition.summary;
+  $("#marker-title").placeholder = definition.markerPlaceholder;
+  $$('[data-game-profile-only]').forEach(element => {
+    element.hidden = element.dataset.gameProfileOnly !== selected;
+  });
+  $$('[data-game-profiles]').forEach(panel => {
+    const profiles = panel.dataset.gameProfiles.split(/\s+/);
+    panel.classList.toggle("game-profile-hidden", !profiles.includes(selected));
+  });
+  renderFpsMarkerSummary();
+  if (options.persist !== false) localStorage.setItem("streamsidekick.gameProfile", selected);
+  if (options.refreshLayout !== false && document.body.dataset.workspacePage) {
+    setActiveWorkspace(document.body.dataset.workspacePage, { persist: false });
+  }
+  if (options.announce) toast(`${definition.name} selected.`);
+}
+
+function initializeGameProfile() {
+  applyGameProfile(state.gameProfile, { persist: false, refreshLayout: false });
+  $$('[data-game-profile]').forEach(button => button.addEventListener("click", () => {
+    applyGameProfile(button.dataset.gameProfile, { announce: true });
+  }));
+}
 
 async function api(path, options = {}) {
   let response;
@@ -319,6 +371,10 @@ async function refreshPreflight() {
     const wasTracking = state.sessionActive;
     state.preflight = await api(`/api/preflight?spotifyEnabled=${state.spotifyEnabled}&tangiaEnabled=${state.tangiaEnabled}&streamElementsEnabled=${state.streamElementsEnabled}&streamElementsConfirmed=${state.streamElementsConfirmed}&tikFinityEnabled=${state.tikFinityEnabled}`);
     state.sessionActive = state.preflight.sessionActive;
+    if (!state.musicOverlayBusy && typeof state.preflight.musicOverlayVisible === "boolean") {
+      state.musicOverlayVisible = state.preflight.musicOverlayVisible;
+      renderMusicOverlayVisibility();
+    }
     setCheck("#check-obs", state.preflight.obsConnected, state.preflight.obsConnected ? "Connected and ready" : "Connection required", state.preflight.obsConnected ? "Ready" : "Connect");
     const microphone = state.preflight.microphone || {};
     const microphoneReady = Boolean(state.preflight.microphoneReady);
@@ -704,7 +760,93 @@ function renderSession() {
   $("#stream-title").disabled = active;
   $("#session-title").textContent = active ? (state.report?.title || "Session in progress") : "Ready when you are";
   $("#session-subtitle").textContent = active ? "Markers, scene changes, ads, and logged interactions are being recorded." : "Connect OBS, run the preflight, and start tracking the show.";
+  renderFpsMarkerSummary();
+  renderWardogs();
   renderSimpleExperience();
+}
+
+function renderFpsMarkerSummary(report = state.report) {
+  const markers = report?.markers || [];
+  const killCount = markers.filter(marker => marker.kind === "fps-kill").length;
+  const deathCount = markers.filter(marker => marker.kind === "fps-death").length;
+  const killValue = $("#fps-kill-count");
+  const deathValue = $("#fps-death-count");
+  const status = $("#fps-marker-status");
+  if (killValue) killValue.textContent = String(killCount);
+  if (deathValue) deathValue.textContent = String(deathCount);
+  if (status) status.textContent = state.sessionActive
+    ? "Ready. Marker options below also control replay and Twitch clips."
+    : "Start a session to track kills and deaths.";
+  $$('[data-fps-marker]').forEach(button => { button.disabled = !state.sessionActive; });
+}
+
+function renderWardogs() {
+  const provider = state.wardogs;
+  const result = state.report?.wardogs;
+  const steamInput = $("#wardogs-steam-id");
+  const serverInput = $("#wardogs-server");
+  if (provider && document.activeElement !== steamInput) steamInput.value = provider.steamId || "";
+  if (provider && document.activeElement !== serverInput) serverInput.value = provider.server || "";
+  const configured = provider?.configured === true;
+  const verified = result?.verifiedDelta === true;
+  $("#wardogs-state").textContent = verified ? "Results ready" : configured ? "Configured" : "Not configured";
+  $("#wardogs-kills").textContent = verified ? String(result.kills ?? 0) : "—";
+  $("#wardogs-deaths").textContent = verified ? String(result.deaths ?? 0) : "—";
+  const deaths = Number(result?.deaths || 0);
+  const kills = Number(result?.kills || 0);
+  $("#wardogs-kd").textContent = verified ? (deaths > 0 ? (kills / deaths).toFixed(2) : kills > 0 ? "∞" : "0.00") : "—";
+  $("#wardogs-result-status").textContent = result?.status || provider?.status || "Add a SteamID64 and community server.";
+  $("#capture-wardogs-baseline").disabled = !configured || !state.sessionActive;
+  $("#fetch-wardogs-results").disabled = !configured || !state.report;
+}
+
+async function refreshWardogsStatus() {
+  try {
+    state.wardogs = await api("/api/wardogs/status");
+    renderWardogs();
+  } catch (error) {
+    $("#wardogs-result-status").textContent = error.message;
+  }
+}
+
+async function saveWardogsSettings() {
+  try {
+    state.wardogs = await api("/api/wardogs/settings", {
+      method: "PUT",
+      body: JSON.stringify({
+        steamId: $("#wardogs-steam-id").value.trim(),
+        server: $("#wardogs-server").value.trim()
+      })
+    });
+    renderWardogs();
+    toast(state.wardogs.configured ? "Wardogs setup saved." : "Wardogs results disabled.");
+  } catch (error) { toast(error.message, true); }
+}
+
+async function captureWardogsBaseline() {
+  try {
+    const result = await api("/api/wardogs/baseline", { method: "POST" });
+    state.wardogs = result.status;
+    if (result.report) renderReport(result.report);
+    renderWardogs();
+    toast("Wardogs starting baseline captured.");
+  } catch (error) { toast(error.message, true); }
+}
+
+async function fetchWardogsResults() {
+  try {
+    const result = await api("/api/wardogs/reconcile", {
+      method: "POST",
+      body: JSON.stringify({ reportId: state.report?.id || null })
+    });
+    state.wardogs = result.status;
+    renderReport(result.report);
+    renderWardogs();
+    toast(result.report?.wardogs?.verifiedDelta
+      ? "Wardogs kills and deaths added to the stream report."
+      : "Wardogs stats fetched, but a reliable session delta was not available.",
+      result.report?.wardogs?.verifiedDelta !== true);
+  } catch (error) { toast(error.message, true); }
 }
 
 function renderReport(report) {
@@ -717,6 +859,8 @@ function renderReport(report) {
     ? `${new Date(report.startedAt).toLocaleDateString()} · ${report.endedAt ? "Saved" : "In progress"}`
     : "No saved stream selected";
   $("#report-performance").textContent = report?.performanceSummary || "Performance diagnosis appears after a tracked session.";
+  renderFpsMarkerSummary(report);
+  renderWardogs();
   const resourceList = $("#report-resource-drains");
   if (!report?.topResourceDrains?.length) {
     resourceList.className = "report-resource-drains empty-state";
@@ -1493,6 +1637,36 @@ function renderSpotifyPreflight(snapshot) {
   setCheck("#check-spotify", ready, detail, ready ? "Ready" : connected ? "Device" : "Connect");
 }
 
+function renderMusicOverlayVisibility() {
+  const known = typeof state.musicOverlayVisible === "boolean";
+  const button = $("#toggle-music-overlay");
+  button.disabled = state.musicOverlayBusy || !known;
+  button.textContent = state.musicOverlayBusy ? "Saving…" : !known ? "Checking overlay…"
+    : state.musicOverlayVisible ? "Hide overlay" : "Show overlay";
+  button.setAttribute("aria-busy", String(state.musicOverlayBusy));
+  $("#music-overlay-status").textContent = !known ? "Checking whether the overlay is shown."
+    : state.musicOverlayVisible ? "Song and queue graphics are enabled in the OBS overlay."
+    : "Song and queue graphics are hidden. Music and requests continue.";
+}
+
+$("#toggle-music-overlay").addEventListener("click", async () => {
+  if (state.musicOverlayBusy || typeof state.musicOverlayVisible !== "boolean") return;
+  state.musicOverlayBusy = true;
+  renderMusicOverlayVisibility();
+  try {
+    const settings = await api("/api/overlay/music", {
+      method: "PUT", body: JSON.stringify({ visible: !state.musicOverlayVisible })
+    });
+    if (typeof settings?.visible !== "boolean") throw new Error("Restart the Handler to load the updated overlay controls.");
+    state.musicOverlayVisible = settings.visible;
+    toast(settings.visible ? "Song overlay enabled. OBS will show it shortly." : "Song overlay hidden. Music and requests continue.");
+  } catch (error) { toast(error.message, true); }
+  finally {
+    state.musicOverlayBusy = false;
+    renderMusicOverlayVisibility();
+  }
+});
+
 function renderSpotify() {
   const snapshot = state.spotify || {};
   const playback = snapshot.playback;
@@ -1572,6 +1746,8 @@ function formatAlertTime(value) {
 const layoutStorageKey = "streamsidekick.panelOrder";
 const collapsedPanelsStorageKey = "streamsidekick.collapsedPanels";
 const panelSizesStorageKey = "streamsidekick.panelSizes";
+const defaultLayoutStorageKey = "johns-handler.default-layout-v1";
+let useRecommendedPanelLayout = false;
 const floatingPanelsStorageKey = "streamsidekick.floatingPanels";
 const panelTabGroupsStorageKey = "streamsidekick.panelTabGroups";
 const themeStorageKey = "streamsidekick.theme";
@@ -1610,8 +1786,7 @@ const simplePanelShortcutDefinitions = [
 ];
 let simpleFeaturePreferences = loadSimpleFeaturePreferences();
 let simplePanelShortcuts = loadSimplePanelShortcuts();
-const legacyDefaultPanelOrder = ["stream-health", "clips", "scenes", "audio", "chat", "alerts", "commands", "automations", "raids", "viewers", "streamelements", "tikfinity", "tangia", "ads", "spotify", "performance", "optimizer", "report"];
-const defaultPanelOrder = ["stream-health", "scenes", "audio", "chat", "alerts", "clips", "ads", "performance", "commands", "automations", "raids", "viewers", "spotify", "tangia", "streamelements", "tikfinity", "optimizer", "report"];
+const defaultPanelOrder = HandlerPanelLayout.order;
 let layoutSaveChain = Promise.resolve();
 let panelTabGroups = [];
 let floatingPanelZ = 200;
@@ -2088,6 +2263,7 @@ function setActiveWorkspace(page, options = {}) {
   const selected = Object.hasOwn(workspacePages, page) ? page : "pre";
   const definition = workspacePages[selected];
   document.body.dataset.workspacePage = selected;
+  applyDefaultPanelSizes(selected);
 
   $$('[data-workspace-page]').forEach(button => {
     const active = button.dataset.workspacePage === selected;
@@ -2148,13 +2324,20 @@ const themeLabels = {
   ember: "Ember",
   slate: "Slate"
 };
+const visualStyleLabels = {
+  broadcast: "Broadcast",
+  vibe: "Vibe",
+  tactical: "Tactical"
+};
 
 function renderAppearanceControls() {
-  const visualStyle = document.body.dataset.visualStyle === "vibe" ? "vibe" : "broadcast";
+  const visualStyle = Object.hasOwn(visualStyleLabels, document.body.dataset.visualStyle)
+    ? document.body.dataset.visualStyle
+    : "broadcast";
   const selectedTheme = Object.hasOwn(themes, document.documentElement.dataset.theme)
     ? document.documentElement.dataset.theme
-    : "midnight";
-  $("#appearance-button").textContent = `Appearance · ${visualStyle === "vibe" ? "Vibe" : "Broadcast"}`;
+    : "ocean";
+  $("#appearance-button").textContent = `Appearance · ${visualStyleLabels[visualStyle]}`;
   $$('[data-visual-style-option]').forEach(button => {
     const active = button.dataset.visualStyleOption === visualStyle;
     button.classList.toggle("active", active);
@@ -2169,7 +2352,7 @@ function renderAppearanceControls() {
 
 function initializeVisualStyle() {
   const saved = localStorage.getItem(visualStyleStorageKey);
-  applyVisualStyle(saved === "vibe" ? "vibe" : "broadcast", false);
+  applyVisualStyle(Object.hasOwn(visualStyleLabels, saved) ? saved : "broadcast", false);
   $("#appearance-button").addEventListener("click", () => {
     renderAppearanceControls();
     $("#appearance-dialog").showModal();
@@ -2180,25 +2363,25 @@ function initializeVisualStyle() {
 }
 
 function applyVisualStyle(style, persist) {
-  const selected = style === "vibe" ? "vibe" : "broadcast";
+  const selected = Object.hasOwn(visualStyleLabels, style) ? style : "broadcast";
   document.body.dataset.visualStyle = selected;
   renderAppearanceControls();
   if (persist) {
     localStorage.setItem(visualStyleStorageKey, selected);
-    toast(selected === "vibe" ? "Vibe Dashboard selected." : "Broadcast Console selected.");
+    toast(`${visualStyleLabels[selected]} ${selected === "vibe" ? "Dashboard" : "Console"} selected.`);
   }
 }
 
 function initializeTheme() {
   const saved = localStorage.getItem(themeStorageKey);
-  applyTheme(Object.hasOwn(themes, saved) ? saved : "midnight", false);
+  applyTheme(Object.hasOwn(themes, saved) ? saved : "ocean", false);
   $$('[data-theme-option]').forEach(button => button.addEventListener("click", () => {
     applyTheme(button.dataset.themeOption, true);
   }));
 }
 
 function applyTheme(theme, persist) {
-  const selected = Object.hasOwn(themes, theme) ? theme : "midnight";
+  const selected = Object.hasOwn(themes, theme) ? theme : "ocean";
   document.documentElement.dataset.theme = selected;
   document.querySelector('meta[name="theme-color"]')?.setAttribute("content", themes[selected]);
   renderAppearanceControls();
@@ -2215,13 +2398,15 @@ async function initializeMovablePanels() {
   captureDefaultPanelPages();
   const savedLayout = await readSavedDashboardLayout();
   let savedOrder = savedLayout.panelOrder;
-  // Upgrade the untouched legacy arrangement to the broadcast-first hierarchy. A genuinely custom
-  // order remains exactly as the streamer left it.
-  const savedVisibleOrder = savedOrder.filter(id => id !== "wow-addons" && id !== "wow-events");
-  if (savedVisibleOrder.length === legacyDefaultPanelOrder.length
-      && savedVisibleOrder.every((id, index) => id === legacyDefaultPanelOrder[index])) {
-    savedOrder = [...defaultPanelOrder];
-  }
+  const collapsedPanels = readCollapsedPanels();
+  const panelSizes = readPanelSizes();
+  const floatingPanels = readFloatingPanels();
+  const hasSavedLayout = savedOrder.length > 0 || Object.keys(savedLayout.panelPages).length > 0
+    || Object.keys(panelSizes).length > 0 || Object.keys(floatingPanels).length > 0
+    || collapsedPanels.size > 0 || localStorage.getItem(panelTabGroupsStorageKey) !== null;
+  // Existing installations opt in with Reset layout; an update must not rearrange a working desk.
+  useRecommendedPanelLayout = localStorage.getItem(defaultLayoutStorageKey) === "true" || !hasSavedLayout;
+  if (useRecommendedPanelLayout) localStorage.setItem(defaultLayoutStorageKey, "true");
   if (savedOrder.length && !savedOrder.includes("audio")) {
     const scenesIndex = savedOrder.indexOf("scenes");
     savedOrder.splice(scenesIndex >= 0 ? scenesIndex + 1 : savedOrder.length, 0, "audio");
@@ -2231,9 +2416,7 @@ async function initializeMovablePanels() {
   // Migrate browser-only layouts and page assignments into the durable app store.
   savePanelOrder();
 
-  const collapsedPanels = readCollapsedPanels();
-  const panelSizes = readPanelSizes();
-  const floatingPanels = readFloatingPanels();
+  applyDefaultPanelSizes(document.body.dataset.workspacePage || "pre");
   $$(".dashboard-grid > .panel").forEach(panel => {
     const heading = panel.querySelector(".panel-heading");
     const panelName = heading.querySelector("h3")?.textContent || "dashboard card";
@@ -2317,7 +2500,7 @@ async function initializeMovablePanels() {
         saveFloatingPanels();
         return;
       }
-      const panels = $$(".dashboard-grid > .panel:not(.workspace-hidden)");
+      const panels = $$(".dashboard-grid > .panel:not(.workspace-hidden):not(.game-profile-hidden)");
       const target = nearestPanelInDirection(panel, panels, event.key);
       if (!target) return;
       // Swap the two cards rather than inserting across the intervening items. This preserves both
@@ -2415,30 +2598,17 @@ async function initializeMovablePanels() {
     clearDropIndicators();
   });
 
-  $("#reset-layout").addEventListener("click", () => {
-    applyPanelOrder(defaultPanelOrder);
-    $$(".dashboard-grid > .panel").forEach(panel => {
-      const heading = panel.querySelector(".panel-heading");
-      setPanelCollapsed(
-        panel,
-        false,
-        heading.querySelector(".panel-collapse-button"),
-        heading.querySelector("h3")?.textContent || "dashboard card"
-      );
-      panel.removeAttribute("data-panel-span");
-      panel.removeAttribute("data-panel-height");
-      panel.style.removeProperty("--panel-span");
-      panel.style.removeProperty("--panel-height");
-      setPanelFloating(panel, false, heading.querySelector(".panel-float-button"), heading.querySelector("h3")?.textContent || "dashboard card");
-    });
-    panelTabGroups = [];
-    renderPanelTabGroups();
-    localStorage.removeItem(collapsedPanelsStorageKey);
-    localStorage.removeItem(panelSizesStorageKey);
-    localStorage.removeItem(floatingPanelsStorageKey);
-    localStorage.removeItem(panelTabGroupsStorageKey);
-    savePanelOrder();
-    toast("Dashboard layout reset and all cards expanded.");
+  $("#reset-layout").addEventListener("click", () => $("#reset-layout-dialog").showModal());
+  $("#confirm-reset-layout").addEventListener("click", async () => {
+    const button = $("#confirm-reset-layout");
+    button.disabled = true;
+    try {
+      const saved = await restoreDefaultPanelLayout();
+      $("#reset-layout-dialog").close();
+      toast(saved === false
+        ? "Defaults restored in this browser, but the Handler could not save the layout. Please try Reset layout again."
+        : "Default panel positions, sizes, and spacing restored. Your connections and settings are unchanged.", saved === false);
+    } finally { button.disabled = false; }
   });
 
   window.addEventListener("pagehide", () => {
@@ -2455,6 +2625,36 @@ async function initializeMovablePanels() {
       keepalive: true
     }).catch(() => {});
   });
+}
+
+function applyDefaultPanelSizes(page) {
+  const grid = $(".dashboard-grid");
+  grid.classList.toggle("recommended-layout", useRecommendedPanelLayout);
+  if (!useRecommendedPanelLayout) return;
+  $$(".dashboard-grid > .panel").forEach(panel => HandlerPanelLayout.applySize(panel, page));
+}
+
+function restoreDefaultPanelLayout() {
+  useRecommendedPanelLayout = true;
+  localStorage.setItem(defaultLayoutStorageKey, "true");
+  applyPanelOrder(defaultPanelOrder);
+  applyPanelPages({});
+  $$(".dashboard-grid > .panel").forEach(panel => {
+    const heading = panel.querySelector(".panel-heading");
+    const name = heading.querySelector("h3")?.textContent || "dashboard card";
+    setPanelCollapsed(panel, false, heading.querySelector(".panel-collapse-button"), name);
+    panel.removeAttribute("data-panel-span");
+    panel.removeAttribute("data-panel-height");
+    panel.style.removeProperty("--panel-span");
+    panel.style.removeProperty("--panel-height");
+    setPanelFloating(panel, false, heading.querySelector(".panel-float-button"), name);
+  });
+  panelTabGroups = [];
+  [collapsedPanelsStorageKey, panelSizesStorageKey, floatingPanelsStorageKey, panelTabGroupsStorageKey]
+    .forEach(key => localStorage.removeItem(key));
+  // Reapply page visibility after restoring assignments, including optional panels that stay disabled.
+  setActiveWorkspace(document.body.dataset.workspacePage || "pre", { persist: false });
+  return savePanelOrder();
 }
 
 function nearestPanelInDirection(panel, panels, key) {
@@ -2827,7 +3027,7 @@ function addPanelResizeHandle(panel, panelName, grid) {
       saveFloatingPanels();
       return;
     }
-    const span = Number(panel.dataset.panelSpan || 6);
+    const span = Number(panel.dataset.panelSpan || panel.dataset.panelDefaultSpan || 6);
     const height = Number(panel.dataset.panelHeight || Math.round(panel.getBoundingClientRect().height));
     setPanelSize(
       panel,
@@ -2950,7 +3150,11 @@ function savePanelOrder() {
       method: "PUT",
       body: JSON.stringify({ panelOrder: order, panelPages })
     }))
-    .catch(error => console.warn("Dashboard layout could not be saved to the app store.", error));
+    .catch(error => {
+      console.warn("Dashboard layout could not be saved to the app store.", error);
+      return false;
+    });
+  return layoutSaveChain;
 }
 
 function currentPanelOrder() {
@@ -3156,6 +3360,18 @@ async function addMarker(title = null, kind = "clip", options = {}) {
   } catch (error) { toast(error.message, true); }
 }
 
+async function addFpsMarker(eventType) {
+  if (state.gameProfile !== "fps") return;
+  if (!state.sessionActive) {
+    toast("Start a tracked session before marking kills or deaths.", true);
+    return;
+  }
+  const isKill = eventType === "kill";
+  const kind = isKill ? "fps-kill" : "fps-death";
+  const existingCount = (state.report?.markers || []).filter(marker => marker.kind === kind).length;
+  await addMarker(`${isKill ? "Kill" : "Death"} #${existingCount + 1}`, kind);
+}
+
 async function toggleSession() {
   try {
     if (state.sessionActive) {
@@ -3175,7 +3391,7 @@ async function toggleSession() {
         body: JSON.stringify({ title: $("#stream-title").value.trim() })
       });
       state.sessionActive = true;
-      state.report = { title: session.title, startedAt: session.startedAt, durationMinutes: 0, highlightCount: 0, sceneChangeCount: 0, markers: [] };
+      state.report = { id: session.id, title: session.title, startedAt: session.startedAt, durationMinutes: 0, highlightCount: 0, sceneChangeCount: 0, markers: [], wardogs: session.wardogs || null };
       // Starting a show moves the interface from setup tools to the live control workspace.
       setActiveWorkspace("during", { persist: true });
       toast("Session tracking started.");
@@ -3620,6 +3836,10 @@ $("#add-marker").addEventListener("click", () => addMarker());
 $("#create-social-clip").addEventListener("click", () => addMarker(null, "clip", { createTwitchClip: true }));
 $("#marker-title").addEventListener("keydown", event => { if (event.key === "Enter") addMarker(); });
 $$('[data-marker]').forEach(button => button.addEventListener("click", () => addMarker(button.dataset.marker, button.dataset.kind)));
+$$('[data-fps-marker]').forEach(button => button.addEventListener("click", () => addFpsMarker(button.dataset.fpsMarker)));
+$("#save-wardogs-settings").addEventListener("click", saveWardogsSettings);
+$("#capture-wardogs-baseline").addEventListener("click", captureWardogsBaseline);
+$("#fetch-wardogs-results").addEventListener("click", fetchWardogsResults);
 $("#unmute-microphone").addEventListener("click", async () => {
   const microphone = state.preflight?.microphone;
   if (!microphone?.connected) {
@@ -4191,6 +4411,8 @@ document.addEventListener("keydown", event => {
   if (!event.altKey || ["INPUT", "TEXTAREA"].includes(document.activeElement?.tagName)) return;
   if (event.key.toLowerCase() === "m") { event.preventDefault(); addMarker(); }
   if (event.key.toLowerCase() === "r") { event.preventDefault(); $("#save-replay-only").click(); }
+  if (state.gameProfile === "fps" && event.shiftKey && event.key.toLowerCase() === "k") { event.preventDefault(); addFpsMarker("kill"); }
+  if (state.gameProfile === "fps" && event.shiftKey && event.key.toLowerCase() === "d") { event.preventDefault(); addFpsMarker("death"); }
 });
 
 // Recursive timeouts wait for each request to finish. setInterval could stack duplicate Spotify/OBS
@@ -4204,6 +4426,7 @@ function startPolling(task, delayMs, panelId = null) {
       if (!document.hidden
           && !panel?.classList.contains("collapsed")
           && !panel?.classList.contains("workspace-hidden")
+          && !panel?.classList.contains("game-profile-hidden")
           && !panel?.classList.contains("tab-hidden")) await task();
     } catch (error) {
       console.debug("Background dashboard refresh failed.", error);
@@ -4225,7 +4448,7 @@ async function boot() {
   $("#youtube-live-url").value = state.youtubeVideoId ? `https://www.youtube.com/watch?v=${state.youtubeVideoId}` : "";
   $("#raid-range").value = String([7, 14, 31].includes(state.raidDays) ? state.raidDays : 31);
   await loadSetupConfiguration();
-  const startupTasks = [refreshPreflight(), refreshObs(), refreshAudio(), refreshReport(false), refreshStreamHistory(), refreshPerformance(), loadProfileAnalysis(), refreshOptimizerStatus(), refreshAlerts(), refreshChatChime(), refreshSpotify(), refreshTangia(), refreshStreamElements(), refreshTikFinity(), refreshAds(), refreshChatCommands(), refreshAutomations(), refreshRaids(true), refreshViewerNotes()];
+  const startupTasks = [refreshPreflight(), refreshObs(), refreshAudio(), refreshReport(false), refreshStreamHistory(), refreshPerformance(), loadProfileAnalysis(), refreshOptimizerStatus(), refreshAlerts(), refreshChatChime(), refreshSpotify(), refreshTangia(), refreshStreamElements(), refreshTikFinity(), refreshAds(), refreshChatCommands(), refreshAutomations(), refreshRaids(true), refreshViewerNotes(), refreshWardogsStatus()];
   // WoW tools are temporarily out of the product. Keeping their work out of this list also prevents
   // hidden cards from scanning game files or polling combat logs in the background.
   if (state.setup.wowToolsEnabled === true) {
@@ -4264,6 +4487,7 @@ async function startDashboard() {
   initializeVisualStyle();
   initializeTheme();
   initializeUserMode();
+  initializeGameProfile();
   renderGuidedDemo();
   await initializeMovablePanels();
   initializeWorkspaceNavigation();

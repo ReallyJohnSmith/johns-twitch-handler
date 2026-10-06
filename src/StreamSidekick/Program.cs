@@ -28,6 +28,7 @@ builder.Services.AddSingleton<ConnectionDiagnosticsLog>();
 builder.Services.AddSingleton<DashboardLayoutStore>();
 builder.Services.AddSingleton<ObsWebSocketClient>();
 builder.Services.AddSingleton<SessionStore>();
+builder.Services.AddSingleton<WardogsService>();
 builder.Services.AddSingleton<StreamSessionLifecycleService>();
 builder.Services.AddSingleton<TwitchClient>();
 builder.Services.AddSingleton<TwitchEventSubService>();
@@ -38,6 +39,7 @@ builder.Services.AddSingleton<InternetMonitorService>();
 builder.Services.AddSingleton<WowAddonService>();
 builder.Services.AddSingleton<WowEventMonitorService>();
 builder.Services.AddSingleton<SpotifyService>();
+builder.Services.AddSingleton<MusicOverlaySettingsStore>();
 builder.Services.AddSingleton<AdBreakService>();
 builder.Services.AddSingleton<PrivateChatChimeService>();
 builder.Services.AddSingleton<StreamElementsService>();
@@ -74,6 +76,7 @@ app.UseStaticFiles(dashboardStaticFiles);
 
 var obs = app.Services.GetRequiredService<ObsWebSocketClient>();
 var sessions = app.Services.GetRequiredService<SessionStore>();
+var wardogs = app.Services.GetRequiredService<WardogsService>();
 var twitch = app.Services.GetRequiredService<TwitchClient>();
 var twitchEvents = app.Services.GetRequiredService<TwitchEventSubService>();
 var nvidiaBroadcast = app.Services.GetRequiredService<NvidiaBroadcastService>();
@@ -83,6 +86,7 @@ var profileAnalyzer = app.Services.GetRequiredService<ObsProfileAnalyzer>();
 var wowAddons = app.Services.GetRequiredService<WowAddonService>();
 var wowEvents = app.Services.GetRequiredService<WowEventMonitorService>();
 var spotify = app.Services.GetRequiredService<SpotifyService>();
+var musicOverlaySettings = app.Services.GetRequiredService<MusicOverlaySettingsStore>();
 var connectionLog = app.Services.GetRequiredService<ConnectionDiagnosticsLog>();
 var dashboardLayout = app.Services.GetRequiredService<DashboardLayoutStore>();
 var adBreaks = app.Services.GetRequiredService<AdBreakService>();
@@ -374,8 +378,19 @@ app.MapGet("/api/setup", () => Results.Ok(new
 // OBS, Spotify, Twitch, or Tangia, so the on-stream display has negligible performance impact.
 app.MapGet("/api/overlay/status", () => Results.Ok(new
 {
+    musicOverlayVisible = musicOverlaySettings.Get().Visible,
     tangiaBossFocusActive = obs.TangiaBossFocusActive
 }));
+
+app.MapPut("/api/overlay/music", (MusicOverlaySettings settings) =>
+{
+    try { return Results.Ok(musicOverlaySettings.Set(settings)); }
+    catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+    {
+        app.Logger.LogWarning(exception, "Could not save music overlay visibility.");
+        return Results.Json(new { error = "Could not save the overlay setting. Check free disk space and folder permissions, then try again." }, statusCode: 500);
+    }
+});
 
 app.MapGet("/api/preflight", async (bool? spotifyEnabled, bool? tangiaEnabled, bool? streamElementsEnabled, bool? streamElementsConfirmed, bool? tikFinityEnabled, CancellationToken cancellationToken) =>
 {
@@ -415,6 +430,7 @@ app.MapGet("/api/preflight", async (bool? spotifyEnabled, bool? tangiaEnabled, b
         twitchRewardsReady = rewardsReady,
         twitchStatus = twitchSnapshot.Status,
         musicOverlayConfigured = musicOverlay.Found,
+        musicOverlayVisible = musicOverlaySettings.Get().Visible,
         musicOverlayStatus = musicOverlay.Status,
         musicOverlaySourceName = musicOverlay.SourceName,
         tangiaConfigured = tangia.Found,
@@ -860,7 +876,23 @@ app.MapPost("/api/obs/replay/save", async (CancellationToken cancellationToken) 
 app.MapGet("/api/session", async (CancellationToken cancellationToken) =>
     Results.Ok(await sessions.CurrentReportAsync(cancellationToken)));
 app.MapPost("/api/session/start", async (SessionStartRequest request, CancellationToken cancellationToken) =>
-    Results.Ok(await sessions.StartAsync(request.Title, cancellationToken)));
+{
+    var session = await sessions.StartAsync(request.Title, cancellationToken);
+    if (wardogs.Configured && session.Wardogs?.Baseline is null)
+    {
+        try
+        {
+            await sessions.SetActiveWardogsBaselineAsync(
+                await wardogs.FetchSnapshotAsync(cancellationToken),
+                cancellationToken);
+        }
+        catch (Exception exception) when (exception is not OperationCanceledException)
+        {
+            app.Logger.LogWarning(exception, "Could not capture the Wardogs starting baseline.");
+        }
+    }
+    return Results.Ok(session);
+});
 
 app.MapPost("/api/session/end", async (CancellationToken cancellationToken) =>
 {
@@ -921,6 +953,45 @@ app.MapPost("/api/markers", async (MarkerRequest request, CancellationToken canc
     }
 
     return Results.Ok(new { marker, warnings });
+});
+
+// --- Wardogs post-stream results --------------------------------------------------------------
+
+app.MapGet("/api/wardogs/status", () => Results.Ok(wardogs.GetStatus()));
+app.MapPut("/api/wardogs/settings", (WardogsSettingsRequest request) =>
+{
+    try { return Results.Ok(wardogs.SaveSettings(request)); }
+    catch (ArgumentException exception) { return Results.BadRequest(new { error = exception.Message }); }
+});
+app.MapPost("/api/wardogs/baseline", async (CancellationToken cancellationToken) =>
+{
+    if (!sessions.HasActiveSession)
+        return Results.BadRequest(new { error = "Start a tracked session before capturing a Wardogs baseline." });
+    try
+    {
+        var snapshot = await wardogs.FetchSnapshotAsync(cancellationToken);
+        var report = await sessions.SetActiveWardogsBaselineAsync(snapshot, cancellationToken);
+        return Results.Ok(new { snapshot, report, status = wardogs.GetStatus() });
+    }
+    catch (Exception exception) when (exception is not OperationCanceledException)
+    {
+        return Results.BadRequest(new { error = exception.Message, status = wardogs.GetStatus() });
+    }
+});
+app.MapPost("/api/wardogs/reconcile", async (WardogsReconcileRequest request, CancellationToken cancellationToken) =>
+{
+    try
+    {
+        var snapshot = await wardogs.FetchSnapshotAsync(cancellationToken);
+        var report = await sessions.SetWardogsFinalAsync(request.ReportId, snapshot, cancellationToken);
+        return report is null
+            ? Results.BadRequest(new { error = "No stream report is available for Wardogs results." })
+            : Results.Ok(new { snapshot, report, status = wardogs.GetStatus() });
+    }
+    catch (Exception exception) when (exception is not OperationCanceledException)
+    {
+        return Results.BadRequest(new { error = exception.Message, status = wardogs.GetStatus() });
+    }
 });
 
 app.MapGet("/api/twitch/status", () => Results.Ok(twitch.GetStatus()));

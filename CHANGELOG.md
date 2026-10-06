@@ -1,5 +1,15 @@
 # John's Twitch Handler release history
 
+## Unreleased
+
+- Added the squared, amber-accented **Tactical Console** as a third appearance while keeping the same dashboard behavior and compact Broadcast layout.
+- New installations now start with Broadcast Console, the Ocean theme, and the RPG game profile. Appearance choices flow in two columns on desktop and one column on narrow screens.
+- Added a consistent first-run panel layout with paired sizes, 12-pixel spacing, and a confirmed Reset layout action. Existing arrangements stay intact until reset; connections, appearance, and Simple-mode choices are preserved.
+- Added a remembered Show/Hide overlay button for Spotify song and queue graphics, without changing playback, requests, preflight checks, or Boss Focus notices. Hidden overlays stop polling Spotify.
+- Added persistent FPS and RPG game profiles.
+- Added dedicated kill and death session markers, counts, and hotkeys to the FPS profile while reusing the existing replay and Twitch clip workflow.
+- Added opt-in Wardogs community-server reconciliation through WARDOGS Tracker, including automatic session baselines, post-stream kill/death deltas, clear rolling-window safeguards, and local report persistence.
+
 ## .015 - 2026-09-27
 
 - Added a messages-only Twitch chat Browser Source that omits Top Gifted Subs, Bits/Cheers leaderboards, promotional panels, and login chrome from the broadcast.

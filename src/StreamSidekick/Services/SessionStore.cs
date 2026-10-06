@@ -326,6 +326,104 @@ public sealed class SessionStore
         return session is null ? null : BuildReport(session);
     }
 
+    public async Task<SessionReport?> SetActiveWardogsBaselineAsync(
+        WardogsStatSnapshot snapshot,
+        CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            if (_active is null) return null;
+            _active.Wardogs = new WardogsSessionData
+            {
+                Baseline = snapshot,
+                Status = $"Baseline captured at {snapshot.CapturedAt.ToLocalTime():t}."
+            };
+            await SaveInternalAsync(_active, cancellationToken);
+            return BuildReport(_active, isActive: true);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    public async Task<SessionReport?> SetWardogsFinalAsync(
+        Guid? sessionId,
+        WardogsStatSnapshot snapshot,
+        CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            StreamSession? session = null;
+            var isActive = false;
+            if (_active is not null && (sessionId is null || _active.Id == sessionId))
+            {
+                session = _active;
+                isActive = true;
+            }
+            else
+            {
+                var sessions = await ReadSessionsInternalAsync(cancellationToken);
+                session = sessionId is { } id
+                    ? sessions.FirstOrDefault(candidate => candidate.Id == id)
+                    : sessions.Where(candidate => candidate.EndedAt is not null)
+                        .OrderByDescending(candidate => candidate.StartedAt)
+                        .FirstOrDefault();
+            }
+            if (session is null) return null;
+
+            session.Wardogs ??= new WardogsSessionData();
+            session.Wardogs.Final = snapshot;
+            session.Wardogs.ReconciledAt = DateTimeOffset.UtcNow;
+            var baseline = session.Wardogs.Baseline;
+            if (baseline is null)
+            {
+                session.Wardogs.VerifiedDelta = false;
+                session.Wardogs.Status = "Post-stream stats fetched, but this session has no starting baseline.";
+            }
+            else if (!baseline.SteamId.Equals(snapshot.SteamId, StringComparison.Ordinal)
+                || !baseline.Server.Equals(snapshot.Server, StringComparison.OrdinalIgnoreCase))
+            {
+                session.Wardogs.VerifiedDelta = false;
+                session.Wardogs.Status = "The saved baseline belongs to a different Wardogs player or server.";
+            }
+            else
+            {
+                var kills = snapshot.Kills - baseline.Kills;
+                var deaths = snapshot.Deaths - baseline.Deaths;
+                var headshots = snapshot.Headshots - baseline.Headshots;
+                var windowIsSafe = snapshot.CapturedAt - baseline.CapturedAt <= TimeSpan.FromHours(23);
+                var countsAreSafe = kills >= 0 && deaths >= 0 && headshots >= 0;
+                session.Wardogs.VerifiedDelta = windowIsSafe && countsAreSafe;
+                if (session.Wardogs.VerifiedDelta)
+                {
+                    session.Wardogs.Kills = kills;
+                    session.Wardogs.Deaths = deaths;
+                    session.Wardogs.Headshots = headshots;
+                    session.Wardogs.Status = "Calculated from the change in the WARDOGS Tracker 24-hour server leaderboard.";
+                }
+                else
+                {
+                    session.Wardogs.Kills = null;
+                    session.Wardogs.Deaths = null;
+                    session.Wardogs.Headshots = null;
+                    session.Wardogs.Status = windowIsSafe
+                        ? "The 24-hour leaderboard moved backward, so a reliable session delta could not be calculated."
+                        : "More than 23 hours passed after the baseline, so the rolling 24-hour leaderboard cannot provide a reliable session delta.";
+                }
+            }
+
+            await SaveInternalAsync(session, cancellationToken);
+            return BuildReport(session, isActive);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
     private async Task SaveInternalAsync(StreamSession session, CancellationToken cancellationToken)
     {
         Directory.CreateDirectory(_dataDirectory);
@@ -408,6 +506,7 @@ public sealed class SessionStore
             session.Activities.OrderBy(activity => activity.At).ToList(),
             session.ChatMessages.OrderBy(message => message.At).ToList(),
             BuildResourceSummary(session),
+            session.Wardogs,
             BuildTimeline(session));
     }
 

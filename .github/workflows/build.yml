@@ -28,3 +28,12 @@ jobs:
 
       - name: Check dashboard JavaScript syntax
         run: node --check src/StreamSidekick/wwwroot/app.js
+
+      - name: Check music overlay behavior
+        run: node --test tests/music-overlay.test.cjs
+
+      - name: Check default panel layout and reset behavior
+        run: node --test tests/layout-defaults.test.cjs
+
+      - name: Check overlay preference persistence
+        run: dotnet run --project tests/MusicOverlayChecks --configuration Release

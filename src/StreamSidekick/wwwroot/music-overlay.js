@@ -4,6 +4,21 @@ const params = new URLSearchParams(window.location.search);
 const queueLimit = Math.min(5, Math.max(1, Number.parseInt(params.get("limit") || "3", 10) || 3));
 let bossFocusActive = false;
 let lastMusicSignature = "";
+let musicOverlayVisible = false;
+let musicRefreshing = false;
+let musicRefreshTimer;
+
+function renderMusicVisibility(visible) {
+  const wasVisible = musicOverlayVisible;
+  musicOverlayVisible = visible === true;
+  document.body.classList.toggle("music-hidden", !musicOverlayVisible);
+  $("#music-content").setAttribute("aria-hidden", String(!musicOverlayVisible));
+  if (musicOverlayVisible && !wasVisible) {
+    // Show current metadata promptly without creating a second polling loop.
+    window.clearTimeout(musicRefreshTimer);
+    refresh();
+  }
+}
 
 function setText(selector, value) {
   $(selector).textContent = value;
@@ -76,24 +91,30 @@ function render(snapshot) {
 }
 
 async function refresh() {
+  if (musicRefreshing) return;
+  musicRefreshing = true;
   try {
-    const response = await fetch("/api/spotify/status", { cache: "no-store" });
+    if (!musicOverlayVisible) return;
+    const response = await fetch("/api/spotify/status", { cache: "no-store", signal: AbortSignal.timeout(8000) });
     if (!response.ok) throw new Error(`Status ${response.status}`);
     render(await response.json());
   } catch {
     render({ connected: false, status: "John's Twitch Handler is unavailable.", queue: [] });
   } finally {
-    window.setTimeout(refresh, 5000);
+    musicRefreshing = false;
+    musicRefreshTimer = window.setTimeout(refresh, 5000);
   }
 }
 
-// Boss Focus uses its own fast, tiny poll so mute notices appear promptly. The endpoint reads one
-// in-memory boolean and does not make additional calls to OBS during combat.
+// Reuse the fast Boss Focus poll for visibility too. Both flags live in memory, so hiding or showing
+// graphics needs no extra OBS or Spotify requests during a fight.
 async function refreshBossFocus() {
   try {
-    const response = await fetch("/api/overlay/status", { cache: "no-store" });
+    const response = await fetch("/api/overlay/status", { cache: "no-store", signal: AbortSignal.timeout(2500) });
     if (!response.ok) throw new Error(`Status ${response.status}`);
-    renderBossFocus((await response.json()).tangiaBossFocusActive);
+    const status = await response.json();
+    renderBossFocus(status.tangiaBossFocusActive);
+    renderMusicVisibility(status.musicOverlayVisible);
   } catch {
     // Preserve the last known state through a brief dashboard restart instead of flashing the
     // banner off in the middle of an encounter.
@@ -103,5 +124,4 @@ async function refreshBossFocus() {
   }
 }
 
-refresh();
 refreshBossFocus();

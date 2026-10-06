@@ -22,6 +22,8 @@ public sealed record TwitchAuthorizationRequest(string? ClientId = null, string?
 public sealed record DashboardLayoutRequest(
     IReadOnlyList<string> PanelOrder,
     IReadOnlyDictionary<string, IReadOnlyList<string>>? PanelPages = null);
+public sealed record WardogsSettingsRequest(string? SteamId, string? Server);
+public sealed record WardogsReconcileRequest(Guid? ReportId = null);
 
 // A StreamSession is the durable source model written to disk; reports are derived views of it.
 public sealed class StreamSession
@@ -35,6 +37,7 @@ public sealed class StreamSession
     public List<SessionChatMessage> ChatMessages { get; set; } = [];
     public List<PerformanceSample> PerformanceSamples { get; set; } = [];
     public List<SessionResourceSnapshot> ResourceSnapshots { get; set; } = [];
+    public WardogsSessionData? Wardogs { get; set; }
 }
 
 public sealed class StreamMarker
@@ -87,7 +90,41 @@ public sealed record SessionReport(
     IReadOnlyList<SessionActivity> Activities,
     IReadOnlyList<SessionChatMessage> ChatMessages,
     IReadOnlyList<SessionResourceSummary> TopResourceDrains,
+    WardogsSessionData? Wardogs,
     IReadOnlyList<SessionTimelineItem> Timeline);
+
+public sealed record WardogsProviderStatus(
+    bool Configured,
+    string? SteamId,
+    string? Server,
+    string Status);
+
+public sealed record WardogsStatSnapshot(
+    DateTimeOffset CapturedAt,
+    string SteamId,
+    string PlayerName,
+    string Server,
+    string ServerName,
+    int Kills,
+    int Deaths,
+    int Headshots,
+    double KillDeathRatio,
+    double? LongestKillMeters,
+    string? TopWeapon,
+    string Source,
+    string SourceUrl);
+
+public sealed class WardogsSessionData
+{
+    public WardogsStatSnapshot? Baseline { get; set; }
+    public WardogsStatSnapshot? Final { get; set; }
+    public int? Kills { get; set; }
+    public int? Deaths { get; set; }
+    public int? Headshots { get; set; }
+    public bool VerifiedDelta { get; set; }
+    public string Status { get; set; } = "Waiting for a baseline.";
+    public DateTimeOffset? ReconciledAt { get; set; }
+}
 
 // History rows stay deliberately small so opening the After Stream page does not transfer every
 // performance sample from every previous broadcast.

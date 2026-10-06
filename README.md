@@ -21,6 +21,8 @@ Developer references: [architecture](docs/ARCHITECTURE.md), [contributing rules]
 - Shows and changes the active OBS scene.
 - Provides a compact OBS audio mixer with live meters, mute controls, and volume sliders.
 - Saves the OBS Replay Buffer and creates timestamped highlight notes.
+- Provides persistent FPS and RPG game profiles. The FPS profile adds dedicated kill and death markers, session counts, and keyboard shortcuts that use the existing replay and Twitch clip options.
+- Supports opt-in Wardogs post-stream reconciliation for community servers: save a SteamID64 and server identifier, capture a 24-hour leaderboard baseline when tracking starts, then fetch the final WARDOGS Tracker snapshot to calculate session kill/death totals.
 - Optionally creates Twitch clips and retains their edit links for StreamLadder.
 - Embeds the channel's Twitch chat in the dashboard and provides a messages-only local OBS chat overlay.
 - Receives follows, subscriptions, gift subs, resubs, cheers, raids, channel-point rewards, and live/offline alerts through Twitch EventSub.
@@ -28,7 +30,7 @@ Developer references: [architecture](docs/ARCHITECTURE.md), [contributing rules]
 - Lets every dashboard panel be rearranged by dragging its header or using four-way Alt+Arrow shortcuts, then remembers the layout.
 - Adds OBS-style panel docking: **Float** undocks a panel inside the Handler window, **Dock** returns it, and dropping one panel over another stacks them as selectable tabs. Drag a tab away or press **Unstack** to separate it again. Positions, sizes, and tab stacks stay local to that browser.
 - Lets users press **Add to Simple** on an Advanced tool such as Spotify song requests. Only chosen tools appear in Simple mode, using the same live controls and settings as Advanced mode.
-- Offers an **Appearance** panel with direct, full-size buttons for the compact **Broadcast Console**, the original rounded **Vibe Dashboard**, and all five color themes. This changes presentation only; every appearance uses the same features, settings, and live connections.
+- Offers an **Appearance** panel with direct, full-size buttons for the compact **Broadcast Console**, rounded **Vibe Dashboard**, squared amber **Tactical Console**, and all five color themes. New installations start with Broadcast, Ocean, and the RPG game profile. Appearance changes presentation only; every option uses the same features, settings, and live connections.
 - Lets unused cards collapse to a compact header with the `−` button and remembers which cards are collapsed in that browser; `+` expands them again.
 - Inventories Retail and Classic WoW addons, shows SavedVariables growth, and safely enables/disables addons per character while WoW is closed.
 - Bundles a lightweight in-game profiler companion that exports Blizzard's addon execution metrics after `/ssp` and `/reload`.

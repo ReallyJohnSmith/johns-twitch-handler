@@ -1,13 +1,13 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="ocean">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta name="theme-color" content="#0b0d13">
+  <meta name="theme-color" content="#061017">
   <title>John's Twitch Handler</title>
-  <link rel="stylesheet" href="styles.css?v=014">
+  <link rel="stylesheet" href="styles.css?v=015">
 </head>
-<body data-user-mode="simple" data-visual-style="broadcast">
+<body data-user-mode="simple" data-visual-style="broadcast" data-game-profile="rpg">
   <!-- A real fixed element is used instead of a body pseudo-element so browser compositors cannot clip it. -->
   <div id="status-border" class="status-border warning" aria-hidden="true"></div>
   <div class="shell">
@@ -32,7 +32,7 @@
         <span class="layout-hint advanced-only">Panel onto panel stacks · pull a tab away to unstack · Float undocks</span>
         <span id="obs-pill" class="pill offline advanced-only"><i></i> OBS offline</span>
         <span id="session-pill" class="pill neutral advanced-only"><i></i> No session</span>
-        <button class="icon-button advanced-only" id="reset-layout" aria-label="Reset dashboard layout" title="Reset dashboard layout">↺</button>
+        <button class="appearance-button" id="reset-layout" type="button" aria-haspopup="dialog" title="Restore default panel positions, sizes, and spacing">Reset layout</button>
         <button class="icon-button" id="settings-button" aria-label="Open settings">Settings</button>
       </div>
     </header>
@@ -53,6 +53,15 @@
           <span class="phase-nav-number">3</span>
           <span><strong>After stream</strong><small>Review and publish</small></span>
         </button>
+        <section class="game-profile-control" aria-labelledby="game-profile-label">
+          <span class="phase-nav-label" id="game-profile-label">GAME PROFILE</span>
+          <div class="game-profile-switch" role="group" aria-label="Game profile">
+            <button type="button" data-game-profile="fps" aria-pressed="false">FPS</button>
+            <button type="button" data-game-profile="rpg" aria-pressed="false">RPG</button>
+          </div>
+          <strong id="game-profile-name">RPG profile</strong>
+          <small id="game-profile-summary">Character, encounter, and progression tools</small>
+        </section>
         <button class="phase-nav-customize advanced-only" id="customize-pages" type="button">Customize pages</button>
         <div class="phase-nav-context" aria-live="polite">
           <strong id="workspace-page-title">Pre-stream</strong>
@@ -305,6 +314,22 @@
             <label><input id="save-replay" type="checkbox" checked> Save OBS replay</label>
             <label><input id="create-twitch-clip" type="checkbox"> Create Twitch clip</label>
           </div>
+          <section class="fps-marker-tools" data-game-profile-only="fps" aria-labelledby="fps-marker-title" hidden>
+            <div class="fps-marker-heading">
+              <div>
+                <strong id="fps-marker-title">FPS event markers</strong>
+                <small id="fps-marker-status">Start a session to track kills and deaths.</small>
+              </div>
+              <div class="fps-marker-counts" aria-live="polite">
+                <span><b id="fps-kill-count">0</b> kills</span>
+                <span><b id="fps-death-count">0</b> deaths</span>
+              </div>
+            </div>
+            <div class="fps-marker-actions">
+              <button type="button" class="fps-kill-button" data-fps-marker="kill" disabled><span>⚔</span> Mark kill <kbd>Alt + Shift + K</kbd></button>
+              <button type="button" class="fps-death-button" data-fps-marker="death" disabled><span>☠</span> Mark death <kbd>Alt + Shift + D</kbd></button>
+            </div>
+          </section>
           <div class="quick-markers">
             <button data-marker="Great play" data-kind="clip"><span class="utility-icon">P</span> Great play</button>
             <button data-marker="Funny moment" data-kind="funny"><span class="utility-icon">F</span> Funny</button>
@@ -313,6 +338,32 @@
           <button id="add-marker" class="primary wide">Save highlight marker</button>
           <button id="create-social-clip" class="secondary wide">Create clip for TikTok / YouTube</button>
           <p class="helper">Markers are stored locally. Twitch clip edit links can go straight into your StreamLadder workflow.</p>
+        </section>
+
+        <section class="panel wardogs-panel" data-panel-id="wardogs" data-pages="pre after" data-game-profiles="fps">
+          <div class="panel-heading">
+            <div>
+              <span class="eyebrow">FPS · WARDOGS</span>
+              <h3>Post-stream results</h3>
+            </div>
+            <span id="wardogs-state" class="tiny-status">Not configured</span>
+          </div>
+          <div class="wardogs-settings-grid">
+            <label>SteamID64<input id="wardogs-steam-id" inputmode="numeric" maxlength="17" placeholder="17-digit SteamID64"></label>
+            <label>Community server<input id="wardogs-server" maxlength="80" placeholder="Tracker slug, server ID, or join code"></label>
+          </div>
+          <div class="wardogs-actions">
+            <button id="save-wardogs-settings" class="secondary" type="button">Save Wardogs setup</button>
+            <button id="capture-wardogs-baseline" class="secondary" type="button">Capture baseline</button>
+            <button id="fetch-wardogs-results" class="primary" type="button">Fetch post-stream results</button>
+          </div>
+          <div class="wardogs-summary" aria-live="polite">
+            <div><strong id="wardogs-kills">—</strong><span>session kills</span></div>
+            <div><strong id="wardogs-deaths">—</strong><span>session deaths</span></div>
+            <div><strong id="wardogs-kd">—</strong><span>session K/D</span></div>
+          </div>
+          <div id="wardogs-result-status" class="performance-warning">Add a SteamID64 and a community server with a connected kill feed.</div>
+          <p class="helper">The Handler saves a 24-hour leaderboard baseline when tracking starts, then calculates the change afterward. This works only for community servers connected to WARDOGS Tracker and does not produce exact event timestamps. Data is provided by <a href="https://wardogstracker.gg" target="_blank" rel="noreferrer">WARDOGS Tracker ↗</a>, an unofficial community service.</p>
         </section>
 
         <!-- OBS WebSocket drives these scene and replay controls directly. -->
@@ -581,7 +632,10 @@
               <span class="eyebrow">VIEWER MUSIC</span>
               <h3>Spotify requests</h3>
             </div>
-            <span id="spotify-state" class="tiny-status">Not connected</span>
+            <div class="spotify-playback-actions">
+              <span id="spotify-state" class="tiny-status">Not connected</span>
+              <button id="toggle-music-overlay" class="secondary spotify-overlay-toggle" aria-describedby="music-overlay-status" disabled>Checking overlay…</button>
+            </div>
           </div>
           <div class="spotify-now-playing">
             <span id="spotify-play-state" class="spotify-mark">♪</span>
@@ -610,10 +664,10 @@
             <button id="test-spotify-request" class="text-button">Test search as viewer</button>
           </div>
           <div class="spotify-overlay-link">
-            <div><strong>Viewer queue overlay</strong><small>Shows the current song and upcoming queue without extra request pop-ups.</small></div>
+            <div><strong>Viewer queue overlay</strong><small id="music-overlay-status" role="status">Checking whether the overlay is shown.</small></div>
             <a class="secondary" href="/music-overlay.html" target="_blank" rel="noreferrer">Open overlay ↗</a>
           </div>
-          <p class="helper">Browser Source URL: <code>http://127.0.0.1:5274/music-overlay.html</code>. The queue overlay remains available, but requests do not create separate broadcast notifications or alter your OBS/VOD audio routing.</p>
+          <p class="helper">Hide overlay removes the song and queue graphics from every scene using this URL. Music, requests, and Boss Focus notices continue. Your choice is remembered. Browser Source URL: <code>http://127.0.0.1:5274/music-overlay.html</code>. If the overlay was already open before this update, refresh its Browser Source in OBS once.</p>
         </section>
 
         <!-- OS telemetry and OBS dropped-frame data are combined into actionable headroom advice. -->
@@ -670,7 +724,7 @@
         </section>
 
         <!-- Temporarily disabled, not removed. Set Features:WowTools to true when we bring the WoW addon tools back. -->
-        <section class="panel wow-panel" data-panel-id="wow-addons" data-pages="pre during" hidden>
+        <section class="panel wow-panel" data-panel-id="wow-addons" data-pages="pre during" data-game-profiles="rpg" hidden>
           <div class="panel-heading">
             <div>
               <span class="eyebrow">WORLD OF WARCRAFT</span>
@@ -708,7 +762,7 @@
         </section>
 
         <!-- Temporarily disabled with the addon tools. The encounter implementation is preserved for later. -->
-        <section class="panel wow-events-panel" data-panel-id="wow-events" data-pages="during after" hidden>
+        <section class="panel wow-events-panel" data-panel-id="wow-events" data-pages="during after" data-game-profiles="rpg" hidden>
           <div class="panel-heading">
             <div>
               <span class="eyebrow">WOW AUTOMATION</span>
@@ -876,6 +930,21 @@
     </form>
   </dialog>
 
+  <dialog id="reset-layout-dialog" aria-labelledby="reset-layout-title">
+    <form method="dialog" class="settings-card compact-dialog">
+      <div class="panel-heading">
+        <h3 id="reset-layout-title">Restore the default layout?</h3>
+        <button class="icon-button" value="cancel" aria-label="Cancel layout reset">×</button>
+      </div>
+      <p>This resets panel order, sizes, spacing, and page assignments on all three pages. Floating panels will dock, tab stacks will separate, and collapsed panels will expand.</p>
+      <p class="helper">Your connections, integration settings, theme, Simple-mode choices, and stream history stay unchanged.</p>
+      <div class="simple-summary-actions">
+        <button class="secondary" value="cancel">Keep my layout</button>
+        <button class="primary" type="button" id="confirm-reset-layout">Restore defaults</button>
+      </div>
+    </form>
+  </dialog>
+
   <dialog id="appearance-dialog">
     <form method="dialog" class="settings-card compact-dialog appearance-dialog-card">
       <div class="panel-heading">
@@ -891,6 +960,9 @@
           </button>
           <button type="button" class="appearance-choice-button" data-visual-style-option="vibe">
             <strong>Vibe Dashboard</strong><small>Rounded cards and roomier spacing</small><span aria-hidden="true">✓</span>
+          </button>
+          <button type="button" class="appearance-choice-button" data-visual-style-option="tactical">
+            <strong>Tactical Console</strong><small>Squared controls, amber accents, and restrained motion</small><span aria-hidden="true">✓</span>
           </button>
         </div>
       </section>
@@ -1000,6 +1072,7 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
-  <script src="app.js?v=014"></script>
+  <script src="layout-defaults.js?v=015"></script>
+  <script src="app.js?v=015"></script>
 </body>
 </html>

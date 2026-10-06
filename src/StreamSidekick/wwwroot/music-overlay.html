@@ -6,7 +6,7 @@
   <title>John's Twitch Handler · Music Queue Overlay</title>
   <link rel="stylesheet" href="music-overlay.css">
 </head>
-<body>
+<body class="music-hidden">
   <!-- Add this page to OBS as a transparent Browser Source; it has no audio or video capture. -->
   <main class="overlay" aria-live="polite">
     <section id="boss-focus-banner" class="boss-focus-banner" aria-hidden="true">
@@ -16,6 +16,8 @@
         <span>Tangia is muted during this fight</span>
       </div>
     </section>
+    <!-- Start hidden until the local service confirms the saved choice, avoiding a flash in OBS. -->
+    <div id="music-content">
     <header>
       <div class="music-icon">♪</div>
       <div>
@@ -37,6 +39,7 @@
         <div class="empty">The next viewer requests will appear here.</div>
       </div>
     </section>
+    </div>
   </main>
   <script src="music-overlay.js"></script>
 </body>
