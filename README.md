@@ -8,6 +8,12 @@ Everything runs locally on the streaming computer. Connections, reports, viewer 
 
 The current approved release is **.015**. The `main` branch may contain newer work that has not been packaged into a numbered release yet.
 
+## One-minute tour
+
+[Watch or download the video](https://github.com/ReallyJohnSmith/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.mp4) · [Download captions](https://github.com/ReallyJohnSmith/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.srt)
+
+A quick look at getting ready, keeping stream controls nearby, saving highlights, and reviewing a session. The video is an MP4, about 6.5 MB, with captions on screen. It shows the development preview, including some features waiting for the next numbered release.
+
 ## Trying it out?
 
 Start with the [tester guide](docs/tester-kit/README.md). It walks through downloading the app, getting connected, and a short first test. You do not need to write code or install developer tools.

@@ -10,7 +10,7 @@ const guidePath = 'src/StreamSidekick/wwwroot/tester-guide.html';
 const read = name => fs.readFileSync(path.join(root, name), 'utf8');
 const supportingFiles = ['README.md', 'CHECKLIST.md', 'FEEDBACK.md', 'KNOWN-LIMITATIONS.md'];
 const markdownFiles = [
-  'README.md', 'PROJECT_NOTES.md', 'RELEASE_WORKFLOW.md',
+  'README.md', 'PROJECT_NOTES.md', 'RELEASE_WORKFLOW.md', 'docs/media/README.md',
   ...supportingFiles.map(name => `docs/tester-kit/${name}`),
   'docs/tester-kit/INVITATION.md',
 ];
@@ -45,6 +45,25 @@ test('offline guide is self-contained, navigable, printable, and does not submit
   assert.match(html, /Only the guided-demo panel uses sample data/);
   assert.match(html, /Send that one downloaded file privately to John/);
   assert.match(read('src/StreamSidekick/wwwroot/index.html'), /href="\/tester-guide\.html"[^>]*>Tester guide<\/a>/);
+});
+
+test('published tour links point to the approved video and captions in the repository', () => {
+  const videoPath = 'docs/media/Johns-Twitch-Handler-60-Second-Tour.mp4';
+  const captionsPath = 'docs/media/Johns-Twitch-Handler-60-Second-Tour.srt';
+  const downloadBase = 'https://github.com/ReallyJohnSmith/johns-twitch-handler/raw/refs/heads/main/';
+  for (const name of ['README.md', 'docs/media/README.md', 'docs/tester-kit/README.md',
+    'docs/tester-kit/KNOWN-LIMITATIONS.md', 'docs/tester-kit/INVITATION.md', guidePath]) {
+    assert.ok(read(name).includes(downloadBase + videoPath), `${name}: missing video link`);
+  }
+  assert.ok(read('README.md').includes(downloadBase + captionsPath));
+  const video = fs.readFileSync(path.join(root, videoPath));
+  assert.equal(video.toString('ascii', 4, 8), 'ftyp', 'expected an MP4, not a pointer or HTML page');
+  assert.ok(video.length > 1_000_000 && video.length < 10_000_000);
+  const captions = read(captionsPath);
+  assert.equal([...captions.matchAll(/ --> /g)].length, 8);
+  assert.match(captions, /00:00:00,000 --> 00:00:06,500/);
+  assert.match(captions, /00:00:52,250 --> 00:01:00,000/);
+  assert.doesNotMatch(read(guidePath), /<video\b/i, 'the offline guide should link to, not preload, the tour');
 });
 
 test('feedback links name real forms and version notes match the approved version', () => {

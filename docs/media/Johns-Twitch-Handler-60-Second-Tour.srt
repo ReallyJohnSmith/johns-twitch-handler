@@ -1,0 +1,31 @@
+1
+00:00:00,000 --> 00:00:06,500
+John's Twitch Handler brings your stream controls, checks, and highlights into one local Windows dashboard.
+
+2
+00:00:06,500 --> 00:00:14,000
+Before going live, check OBS, Twitch, your microphone, and internet. Add reminders for the things you always want to check.
+
+3
+00:00:14,000 --> 00:00:22,000
+During the stream, keep scene controls, audio, chat, and replay tools within reach, with Simple and Advanced views to suit your workflow.
+
+4
+00:00:22,000 --> 00:00:29,000
+When something worth saving happens, add a highlight note, save the OBS replay, or create a Twitch clip for later.
+
+5
+00:00:29,000 --> 00:00:35,500
+Stream health brings performance signals together, helping you spot pressure and understand what may be affecting the broadcast.
+
+6
+00:00:35,500 --> 00:00:43,750
+Choose Broadcast, Vibe, or Tactical styling. Move panels where you want them, and switch between RPG and FPS game profiles.
+
+7
+00:00:43,750 --> 00:00:52,250
+Afterward, review your session timeline, highlights, and performance events. Export your markers, or hand clips off to StreamLadder for editing.
+
+8
+00:00:52,250 --> 00:01:00,000
+Your reports and preferences stay on your computer. John's Twitch Handler. Ready for your next stream.

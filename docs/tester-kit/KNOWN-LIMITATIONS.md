@@ -24,4 +24,4 @@ The GitHub source can describe work that is not in your installed copy yet. Tact
 - Keyboard shortcuts work when the dashboard tab has focus, not while you are playing in another window.
 - Connection settings and reports belong to this Windows account on this PC. They are not automatically shared with John or copied to another computer.
 
-The finished one-minute video is not included yet. Setup and the first test do not depend on it.
+The [one-minute video](https://github.com/ReallyJohnSmith/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.mp4) shows the development preview, including features waiting for the next release. It is a separate download, not part of the installer. Setup and the first test do not depend on it.

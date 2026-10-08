@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added the approved one-minute video tour and downloadable captions, linked from the README and tester guides.
 - Added a plain-language tester kit with setup help, a short checklist, feedback forms, and known limitations. Future installers include an offline guide, also available from Settings.
 - Cleaned up tester-facing documentation and renamed the technical background document to Project notes.
 - Added the squared, amber-accented **Tactical Console** as a third appearance while keeping the same dashboard behavior and compact Broadcast layout.
