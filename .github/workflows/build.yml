@@ -35,5 +35,8 @@ jobs:
       - name: Check default panel layout and reset behavior
         run: node --test tests/layout-defaults.test.cjs
 
+      - name: Check tester guides and packaged help
+        run: node --test tests/tester-kit.test.cjs
+
       - name: Check overlay preference persistence
         run: dotnet run --project tests/MusicOverlayChecks --configuration Release

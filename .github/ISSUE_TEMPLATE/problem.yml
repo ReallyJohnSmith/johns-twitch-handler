@@ -1,0 +1,52 @@
+name: Report a problem
+description: Something did not work, or you got stuck. Plain language is fine.
+title: "[Problem] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for trying John's Twitch Handler. You do not need technical terms.
+        Treat this report as public. Do not include passwords, sign-in codes, stream keys,
+        private chat, viewer notes, logs, or diagnostic files. Send sensitive details privately to John.
+        If you think this is a security or privacy problem, stop here and contact John privately.
+  - type: input
+    id: version
+    attributes:
+      label: Which app version are you using?
+      description: Look near the app name. If you cannot open it, write "not sure."
+      placeholder: "For example: .015 Tester, or not sure"
+    validations:
+      required: true
+  - type: textarea
+    id: problem
+    attributes:
+      label: What were you trying to do, and what happened?
+      description: Include any error words. You can say what you expected here too.
+      placeholder: "I clicked Connect OBS. I expected it to connect, but..."
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: What did you click before it happened?
+      description: List the steps you remember. Did it happen again, or only once?
+  - type: dropdown
+    id: stream-state
+    attributes:
+      label: Were you streaming at the time?
+      options:
+        - Not streaming or recording
+        - Recording only
+        - Live
+        - Not sure
+  - type: input
+    id: environment
+    attributes:
+      label: Windows and OBS versions, if you know them
+      description: Optional. Windows Settings → System → About; OBS Help → About.
+      placeholder: "Not sure is fine"
+  - type: textarea
+    id: screenshot
+    attributes:
+      label: Anything else? A screenshot is optional.
+      description: Check screenshots for private information first. Do not attach diagnostic files or logs here.

@@ -8,6 +8,12 @@ Everything runs locally on the streaming computer. Connections, reports, viewer 
 
 The current approved release is **.015**. The `main` branch may contain newer work that has not been packaged into a numbered release yet.
 
+## Trying it out?
+
+Start with the [tester guide](docs/tester-kit/README.md). It walks through downloading the app, getting connected, and a short first test. You do not need to write code or install developer tools.
+
+If something is confusing or does not work, just tell me what happened. A plain message is fine; you do not need a GitHub account to send feedback privately.
+
 ## How it helps
 
 ### Before the stream
@@ -28,7 +34,7 @@ The live dashboard keeps the most useful controls close by:
 - Manage Spotify song requests.
 - Watch stream health without digging through several OBS windows.
 
-There are separate RPG and FPS profiles. The RPG profile keeps the World of Warcraft tools available, while the FPS profile adds kill and death markers, session totals, and keyboard shortcuts.
+The upcoming release adds separate RPG and FPS profiles, including kill and death markers and keyboard shortcuts for FPS sessions. World of Warcraft addon tools are currently paused and hidden by default.
 
 ### After the stream
 
@@ -42,15 +48,15 @@ The Handler includes Simple and Advanced modes.
 
 Simple mode focuses on the current status and the next action I need to take. Advanced mode shows the full dashboard. If I only need one Advanced tool, I can add that panel to Simple mode without enabling everything else.
 
-Panels can be moved, resized, collapsed, floated, docked, or stacked as tabs. The layout is saved locally. **Reset layout** restores the recommended arrangement without removing connections, themes, or other preferences.
+Panels can be moved, resized, collapsed, floated, docked, or stacked as tabs. The layout is saved locally. The upcoming **Reset layout** option restores the recommended arrangement without removing connections, themes, or other preferences.
 
-There are three visual styles:
+The current source includes three visual styles; Tactical Console is waiting for the next numbered release:
 
 - **Broadcast Console** is compact and practical.
 - **Vibe Dashboard** uses rounder cards and more spacing.
 - **Tactical Console** uses squared controls, darker surfaces, and amber accents.
 
-New installations start with **Broadcast Console**, the **Ocean** theme, and the **RPG** game profile. Existing installations keep the choices that were already saved.
+The next release will start new installations with **Broadcast Console**, the **Ocean** theme, and the **RPG** game profile. Existing installations keep the choices that were already saved.
 
 ## Privacy
 
@@ -70,10 +76,12 @@ The older `StreamSidekick` folder name is kept so updates do not lose existing r
 
 ### Tester setup
 
-1. Run the supplied `Setup.exe`.
+See the [step-by-step tester guide](docs/tester-kit/README.md) if this is your first visit. On GitHub, download the file ending in **Setup.exe** from [Releases](https://github.com/ReallyJohnSmith/johns-twitch-handler/releases), not the source-code ZIP. If no Setup file is listed, ask me for the installer.
+
+1. Run the supplied `Setup.exe` while you are not streaming.
 2. Open **John's Twitch Handler** from the Desktop or Start Menu.
 3. Complete the first-run setup.
-4. Connect OBS and approve Twitch access.
+4. Connect OBS. Approve Twitch access only if you want to try the Twitch features.
 5. Bookmark <http://127.0.0.1:5274/> if you want to open the dashboard directly.
 
 Running a newer installer updates the Handler without removing saved connections, reports, or preferences.
@@ -141,6 +149,8 @@ A 600×420 Browser Source is a good starting size for the music overlay. Add `?l
 
 ## World of Warcraft tools
 
+These tools are currently paused and hidden by default. They are not part of the first tester checklist. The notes below describe the existing implementation for builds where they are enabled.
+
 The Handler can scan Retail and Classic addons, show SavedVariables growth, and safely enable or disable addons for a character while WoW is closed.
 
 It also includes a small profiler addon that uses Blizzard's supported addon profiling tools. To collect a snapshot:
@@ -173,6 +183,7 @@ dotnet build .\StreamSidekick.sln --configuration Release --no-restore
 node --check .\src\StreamSidekick\wwwroot\app.js
 node --test .\tests\music-overlay.test.cjs
 node --test .\tests\layout-defaults.test.cjs
+node --test .\tests\tester-kit.test.cjs
 dotnet run --project .\tests\MusicOverlayChecks --configuration Release --no-restore
 ```
 
@@ -186,8 +197,13 @@ To create the self-contained Windows tester installer:
 
 The installer is written to `artifacts\tester-packages`. Saved credentials, reports, viewer notes, raid history, automations, and logs are not included.
 
+Future installers also include the tester kit. Testers can open **Tester guide** in Settings, or open **Tester kit → START HERE.html** in the installed folder. The guide works without a connection; GitHub links and account sign-in still need internet access.
+
 ## More information
 
+- [Tester guide](docs/tester-kit/README.md)
+- [First test checklist](docs/tester-kit/CHECKLIST.md)
+- [Send feedback](docs/tester-kit/FEEDBACK.md)
 - [Architecture](docs/ARCHITECTURE.md)
 - [Contributing](CONTRIBUTING.md)
 - [Security policy](SECURITY.md)

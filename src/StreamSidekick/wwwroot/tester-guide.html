@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tester guide | John's Twitch Handler</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, sans-serif; line-height: 1.6; color: #172a36; background: #edf3f6; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    header { background: #102c3d; color: #fff; padding: 2.5rem max(1.25rem, calc((100% - 48rem) / 2)); }
+    header p { color: #d4e9f3; }
+    header small { font-weight: 600; }
+    h1 { font-size: clamp(1.8rem, 5vw, 2.6rem); line-height: 1.2; margin: .7rem 0; }
+    h2 { line-height: 1.3; margin-top: 0; }
+    h3 { margin-bottom: .4rem; }
+    main { max-width: 51rem; padding: 1.5rem; margin: auto; }
+    section, nav { padding: 1.5rem; margin-bottom: 1.25rem; background: #fff; border: 1px solid #c9d8df; border-radius: .4rem; }
+    a { color: #075a82; text-underline-offset: .2em; }
+    a:focus-visible, input:focus-visible { outline: 3px solid #b06b00; outline-offset: 4px; }
+    nav a { display: inline-block; margin: .3rem 1rem .3rem 0; }
+    li { margin-bottom: .7rem; }
+    ol, ul { padding-left: 1.4rem; }
+    .note { border-left: 4px solid #b87513; padding: .6rem 1rem; background: #fff4df; }
+    .checks { list-style: none; padding: 0; }
+    .checks li { padding: .6rem 0; border-bottom: 1px solid #e0e8ec; }
+    input[type="checkbox"] { width: 1.15rem; height: 1.15rem; vertical-align: middle; margin: 0 .5rem 0 0; accent-color: #075a82; }
+    pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; padding: 1rem; background: #edf3f6; border: 1px solid #c9d8df; }
+    footer { text-align: center; padding: 0 1rem 2rem; }
+    @media (max-width: 480px) { main { padding: .75rem; } section, nav { padding: 1rem; } }
+    @media print { :root { background: #fff; font-size: 10pt; } header { background: none; color: #172a36; padding: 0; } header p { color: inherit; } main { max-width: none; padding: 0; } section { border: 0; padding: .8rem 0; } nav, footer { display: none; } h2, h3 { break-after: avoid; } li, pre { break-inside: avoid; } }
+  </style>
+</head>
+<body>
+  <header>
+    <small>JOHN'S TWITCH HANDLER · TESTER GUIDE</small>
+    <h1>Thanks for trying it out.</h1>
+    <p>You don't need to be technical. Try the basics, tell me what feels confusing, and skip anything you don't use.</p>
+  </header>
+  <main>
+    <nav aria-label="Guide sections">
+      <a href="#start">Get started</a><a href="#connect">Connect OBS</a><a href="#checklist">First test</a><a href="#feedback">Send feedback</a><a href="#help">Help and limits</a>
+    </nav>
+    <section id="start">
+      <h2>1. Get your copy</h2>
+      <p>You need a <strong>64-bit Windows PC</strong> and a browser. Use the same PC as OBS. Internet access is needed for downloading and connecting accounts. No programming tools are needed.</p>
+      <ol>
+        <li>Open the <a href="https://github.com/ReallyJohnSmith/johns-twitch-handler/releases">download page</a> and choose the release John asked you to test.</li>
+        <li>Under <strong>Assets</strong>, the list of downloads, choose the file ending in <strong>Setup.exe</strong>. Ignore the source-code ZIP files.</li>
+        <li>If no Setup file is listed or you cannot access the page, ask John for a download.</li>
+        <li>While you are <strong>not streaming or recording</strong>, open the downloaded Setup file. It opens the app in your browser and adds Desktop and Start Menu shortcuts.</li>
+      </ol>
+      <p class="note">Windows may warn about an unrecognized app because this test installer is not signed. If you are unsure, stop and ask John. Do not turn off Windows protection or your antivirus.</p>
+      <p>Already installed? Open <strong>John's Twitch Handler</strong> from the Desktop or Start Menu. Its browser window is normal: the app runs on your PC.</p>
+    </section>
+    <section id="connect">
+      <h2>2. Connect OBS</h2>
+      <p>Leave streaming and recording stopped for your first test.</p>
+      <ol>
+        <li>Open OBS, then choose <strong>Tools → WebSocket Server Settings</strong>. This lets the Handler talk to OBS on your PC.</li>
+        <li>Turn on <strong>Enable WebSocket server</strong> and keep <strong>Enable Authentication</strong> turned on.</li>
+        <li>Choose <strong>Show Connect Info</strong> and copy the <strong>Server Password</strong>. Keep it private.</li>
+        <li>In the Handler, open <strong>Settings</strong>. Paste the password into the OBS <strong>Password</strong> box, then choose <strong>Connect OBS</strong>.</li>
+      </ol>
+      <p>Leave the advanced address setting alone. If you cannot find the menu or connect, ask John; you do not need to change router or firewall settings.</p>
+      <h3>Twitch and other tools are optional</h3>
+      <p>For Twitch features, choose <strong>Connect with Twitch</strong>. Review the sign-in and permission screen for your own account, and approve only if you are comfortable. Handle sign-in checks yourself. You can skip this and still try the guided demo and appearance settings.</p>
+      <p>Leave Spotify, Tangia, StreamElements, and TikFinity set to <strong>No</strong> unless you use them. You should not need developer IDs, access tokens, or stream keys. If the normal connection asks for them, stop and tell John.</p>
+    </section>
+    <section id="checklist">
+      <h2>3. Try the basics — about 10 minutes</h2>
+      <p>Try this <strong>off-stream and not recording</strong>. Tick what you try. These ticks are just for you, are not saved, and do not send anything to John. You can print this page from your browser.</p>
+      <ul class="checks">
+        <li><label><input type="checkbox"> <strong>Open the app.</strong> Write down the version near its name.</label></li>
+        <li><label><input type="checkbox"> <strong>Connect OBS.</strong> Does the Handler recognize it?</label></li>
+        <li><label><input type="checkbox"> <strong>Read Preflight.</strong> This is the before-stream checklist. Can you tell what is ready and what needs attention? A service you have not connected may show a warning.</label></li>
+        <li><label><input type="checkbox"> <strong>Open Appearance.</strong> Try Broadcast Console, Vibe Dashboard, and Tactical Console if available. Change the color theme. Can you read the text easily?</label></li>
+        <li><label><input type="checkbox"> <strong>Try Simple and Advanced.</strong> In Advanced, use Add to Simple on a panel you like, then look for it in Simple mode.</label></li>
+        <li><label><input type="checkbox"> <strong>Try the guided demo.</strong> In Advanced, find Stream Health guided demo and choose Start guided demo. Follow the buttons inside that panel.</label></li>
+        <li><label><input type="checkbox"> <strong>Optional: change a scene.</strong> With OBS offline and not recording, note the current scene, choose a different one in the Handler, and check OBS. Return to the original scene.</label></li>
+        <li><label><input type="checkbox"> <strong>Check saved choices.</strong> Exit demo, close the browser tab, and reopen the app from its shortcut. Did your appearance and OBS connection stay saved?</label></li>
+        <li><label><input type="checkbox"> <strong>Tell me how it went.</strong> A short private reply is enough. Skipping a step is fine.</label></li>
+      </ul>
+      <p class="note"><strong>Only the guided-demo panel uses sample data.</strong> Other controls still affect your real OBS or Twitch account. You do not need to go live, record, send chat messages, run ads, raid anyone, or change OBS quality settings for this test.</p>
+      <p>Save replay files, clips, highlight markers, and real stream reports for a later planned test with John. A demo does not create a real stream report.</p>
+    </section>
+    <section id="feedback">
+      <h2>4. Tell me what happened</h2>
+      <p>Reply privately to the message where John invited you. No GitHub account is needed. “Not sure” is a perfectly good answer.</p>
+      <pre>App version (near the app name):
+What I was trying to do:
+What I clicked:
+What I expected:
+What happened instead:
+Did it happen again?
+Was I offline, recording, or live?
+Windows and OBS versions, if I know them:
+
+What confused me:
+What worked well:
+What would make me use this regularly:</pre>
+      <p>Prefer GitHub? You can <a href="https://github.com/ReallyJohnSmith/johns-twitch-handler/issues/new?template=problem.yml">report a problem</a> or <a href="https://github.com/ReallyJohnSmith/johns-twitch-handler/issues/new?template=feedback.yml">share your experience</a> after the forms are published. Those links need internet access and a GitHub account. If they do not open, use a private message.</p>
+      <p><strong>Treat GitHub reports as public.</strong> Do not share passwords, stream keys, sign-in codes, private chat, viewer notes, or unedited logs. Check screenshots before sending them.</p>
+      <h3>If John asks for a troubleshooting file</h3>
+      <p>In Settings, open <strong>Connection help and recent log → Export safe diagnostic report</strong>. Send that one downloaded file privately to John, not to a public GitHub report. The export is designed to omit passwords and tokens; ask before sharing if you are unsure. Do not send whole app or log folders. If the app will not open, the error message is enough to start.</p>
+    </section>
+    <section id="help">
+      <h2>Help and a few limits</h2>
+      <ul>
+        <li><strong>Cannot open the app?</strong> Tell John what appeared. A cropped screenshot of the error helps.</li>
+        <li><strong>OBS will not connect?</strong> Check that it is open and that you used its Server Password, not your Twitch password.</li>
+        <li><strong>Missing a feature?</strong> The last approved release is .015. Tactical Console, new Broadcast/Ocean/RPG defaults, Reset layout, and FPS tools are waiting for the next numbered release. Skip anything missing in your build. This kit does not confirm a new installer is published.</li>
+        <li><strong>Want your panels back?</strong> If available, Reset layout restores their arrangement after confirmation. It keeps your connections and appearance choices.</li>
+        <li><strong>Need an update?</strong> There is no automatic updater yet. Open the newer Setup file John shares, between streams. Updates are designed to keep your settings and reports.</li>
+        <li><strong>Closing the tab does not stop the app.</strong> The Desktop shortcut restarts it. While it is already running, <a href="http://127.0.0.1:5274/">open just the dashboard</a> to avoid a restart.</li>
+        <li><strong>Want to remove it?</strong> Ask John for help. There is no uninstall button yet. Removing a shortcut does not remove the app or saved data.</li>
+        <li><strong>Some tools need extra setup.</strong> Replay saves need OBS Replay Buffer running. Spotify playback needs Premium. Twitch features depend on your channel permissions. WoW addon tools are currently paused.</li>
+        <li><strong>Your data stays on your PC.</strong> Settings and reports are not sent to John automatically. Connected services still receive the requests needed for their features.</li>
+      </ul>
+      <p>The one-minute video will be added when the finished version is ready. You can use this guide without it.</p>
+      <p><a href="https://github.com/ReallyJohnSmith/johns-twitch-handler/blob/main/docs/tester-kit/README.md">More setup help</a> · <a href="https://github.com/ReallyJohnSmith/johns-twitch-handler/blob/main/docs/tester-kit/KNOWN-LIMITATIONS.md">Known limitations</a> · <a href="https://github.com/ReallyJohnSmith/johns-twitch-handler/blob/main/CHANGELOG.md">Release notes</a></p>
+    </section>
+  </main>
+  <footer>John's Twitch Handler · Thanks for helping me make it easier to use.</footer>
+</body>
+</html>

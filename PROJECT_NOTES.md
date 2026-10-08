@@ -1,8 +1,7 @@
-# John's Twitch Handler - Context for ChatGPT
+# John's Twitch Handler - Project notes
 
-This document is safe to upload to a regular ChatGPT conversation when discussing John's Twitch
-Handler. It contains product and technical context, but no passwords, access tokens, viewer notes,
-stream reports, or other private runtime data.
+These notes describe the product direction and technical background for John's Twitch Handler.
+If you are trying the app for the first time, start with the [tester guide](docs/tester-kit/README.md).
 
 ## Quick introduction
 
@@ -315,7 +314,7 @@ These are open design decisions rather than instructions to implement immediatel
 - Whether source will remain private, become source-available, or eventually become open source.
 - Where public tester downloads will be hosted without exposing private source code.
 
-## How regular ChatGPT should use this document
+## Working on the project
 
 When helping with this project:
 
@@ -326,15 +325,9 @@ When helping with this project:
 4. Prefer changes that work locally and reduce tester setup.
 5. Preserve all existing owner functionality when making the tester experience simpler.
 6. Keep Spotify, Tangia, StreamElements, TikFinity, YouTube, and future Discord features optional.
-7. Do not invent access to John's computer, OBS, local files, GitHub, or accounts. Regular ChatGPT can
-   analyze uploaded files, but cannot assume it can run or modify the local application.
+7. Verify behavior against the current source and a local test. Do not assume access to John's
+   computer, OBS, files, GitHub, or accounts.
 8. Ask for the specific current source file when exact implementation advice depends on code that was
    not uploaded.
 9. Flag privacy, security, platform-policy, and performance consequences before recommending a design.
 10. Use the current version and repository state stated by John if it is newer than this document.
-
-Suggested opening prompt when uploading this file:
-
-> This README describes my current application, John's Twitch Handler. Use it as project context.
-> Distinguish existing features from future ideas, preserve the privacy and performance rules, and
-> tell me when you need a current source file before giving implementation-specific advice.

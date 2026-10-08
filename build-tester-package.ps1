@@ -79,6 +79,8 @@ $readmeText = Get-Content -LiteralPath $packageReadme -Raw
 $readmeText = $readmeText -replace '(?m)^Release:.*$', "Release: $($TesterLabel.Trim()) $effectiveVersion"
 Set-Content -LiteralPath $packageReadme -Value $readmeText -Encoding UTF8
 
+& (Join-Path $packageAssets 'copy-tester-kit.ps1') -DestinationDirectory (Join-Path $publishRoot 'Tester kit')
+
 # The payload ZIP is an internal build detail embedded into Setup.exe. Testers receive one Windows
 # application and never need to extract, move, or keep a folder of runtime files.
 Compress-Archive -Path (Join-Path $publishRoot '*') -DestinationPath $payloadZip -CompressionLevel Optimal

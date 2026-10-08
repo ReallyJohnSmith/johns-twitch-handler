@@ -8,7 +8,7 @@ The working directory is prepared for GitHub but should begin as a private repos
 2. Create an empty private repository without generating a README, license, or `.gitignore`.
 3. Decide whether the product will remain proprietary or receive an open-source license. Do not add a license by assumption.
 4. Confirm the default branch name is `main`.
-5. Review `git status` and verify that `artifacts`, `logs`, `.codex-build`, `bin`, and `obj` are ignored.
+5. Review `git status` and verify that generated builds, artifacts, logs, and local working folders are ignored.
 6. Review the initial diff for application IDs or other data that should not be public.
 
 ## Recommended repository settings

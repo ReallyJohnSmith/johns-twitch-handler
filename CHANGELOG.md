@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added a plain-language tester kit with setup help, a short checklist, feedback forms, and known limitations. Future installers include an offline guide, also available from Settings.
+- Cleaned up tester-facing documentation and renamed the technical background document to Project notes.
 - Added the squared, amber-accented **Tactical Console** as a third appearance while keeping the same dashboard behavior and compact Broadcast layout.
 - New installations now start with Broadcast Console, the Ocean theme, and the RPG game profile. Appearance choices flow in two columns on desktop and one column on narrow screens.
 - Added a consistent first-run panel layout with paired sizes, 12-pixel spacing, and a confirmed Reset layout action. Existing arrangements stay intact until reset; connections, appearance, and Simple-mode choices are preserved.

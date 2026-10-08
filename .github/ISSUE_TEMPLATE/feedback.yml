@@ -1,0 +1,37 @@
+name: Share your experience
+description: Tell John what felt useful, confusing, or missing.
+title: "[Feedback] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        A few sentences are enough. Skip anything that does not apply.
+        Treat this report as public. Keep passwords, sign-in codes, stream keys,
+        private chat, viewer notes, and diagnostic files out of this form.
+        You can also reply privately to John's tester invitation instead.
+  - type: input
+    id: version
+    attributes:
+      label: App version, if you know it
+      description: Look near the app name. "Not sure" is fine.
+  - type: textarea
+    id: experience
+    attributes:
+      label: How did your first try go?
+      description: What worked well? What confused you or did not work?
+    validations:
+      required: true
+  - type: textarea
+    id: usefulness
+    attributes:
+      label: What would make you use this regularly?
+      description: An idea, something missing, or something to simplify.
+  - type: dropdown
+    id: preferred-mode
+    attributes:
+      label: Which mode felt easier?
+      options:
+        - Simple
+        - Advanced
+        - I did not try both
+        - Not sure

@@ -30,7 +30,7 @@ try {
         Start-Sleep -Milliseconds 500
     }
     if (-not (Test-HandlerHealth)) {
-        throw "The dashboard did not start. Send John the safe diagnostic report or the file $logRoot\handler-error.log."
+        throw 'The dashboard did not open. Tell John what this message says. Do not send passwords or whole log folders.'
     }
 
     Start-Process $dashboardUrl
