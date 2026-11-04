@@ -8,7 +8,7 @@ This is a test build. Please use it off-stream first, and keep your usual OBS co
 
 Look for **Version** near the app name. Include that number in feedback. This kit accompanies **.016**. Use the installer supplied by John; a guide alone does not confirm that an installer has been uploaded.
 
-Release .016 includes Tactical Console, Broadcast/Ocean/RPG defaults for new installations, Reset layout, and FPS kill/death tools. Existing preferences remain unchanged. See the [release notes](https://github.com/ReallyJohnSmith/johns-twitch-handler/blob/main/CHANGELOG.md).
+Release .016 includes Tactical Console, Broadcast/Ocean/RPG defaults for new installations, Reset layout, and FPS kill/death tools. Existing preferences remain unchanged. See the [release notes](https://github.com/yepitsjohn/johns-twitch-handler/blob/main/CHANGELOG.md).
 
 ## Current limits
 
@@ -24,4 +24,4 @@ Release .016 includes Tactical Console, Broadcast/Ocean/RPG defaults for new ins
 - Keyboard shortcuts work when the dashboard tab has focus, not while you are playing in another window.
 - Connection settings and reports belong to this Windows account on this PC. They are not automatically shared with John or copied to another computer.
 
-The [one-minute video](https://github.com/ReallyJohnSmith/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.mp4) shows the features included in .016. It is a separate download, not part of the installer. Setup and the first test do not depend on it.
+The [one-minute video](https://github.com/yepitsjohn/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.mp4) shows the features included in .016. It is a separate download, not part of the installer. Setup and the first test do not depend on it.

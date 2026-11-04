@@ -8,9 +8,9 @@ Hey, I'd like you to try John's Twitch Handler. It's a Windows app I've been wor
 
 You don't need to be technical, and you don't need to go live. The first test should take about 10 minutes after setup. If you get stuck, tell me where. That's exactly the kind of feedback I need.
 
-Start with the [tester guide](https://github.com/ReallyJohnSmith/johns-twitch-handler/blob/main/docs/tester-kit/README.md). It explains which file to download and how to connect OBS.
+Start with the [tester guide](https://github.com/yepitsjohn/johns-twitch-handler/blob/main/docs/tester-kit/README.md). It explains which file to download and how to connect OBS.
 
-You can also [watch the one-minute tour](https://github.com/ReallyJohnSmith/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.mp4) for a quick look at features included in .016.
+You can also [watch the one-minute tour](https://github.com/yepitsjohn/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.mp4) for a quick look at features included in .016.
 
 Please try it while you're not streaming. It's an early test build, and Windows may show a warning when you open it. If you're unsure, ask me before continuing.
 

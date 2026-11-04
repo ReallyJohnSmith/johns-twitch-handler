@@ -15,7 +15,7 @@ The current approved release is **.016**. The `main` branch may contain newer wo
 
 ## One-minute tour
 
-[Watch or download the video](https://github.com/ReallyJohnSmith/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.mp4) · [Download captions](https://github.com/ReallyJohnSmith/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.srt)
+[Watch or download the video](https://github.com/yepitsjohn/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.mp4) · [Download captions](https://github.com/yepitsjohn/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.srt)
 
 A quick look at getting ready, keeping stream controls nearby, saving highlights, and reviewing a session. The video is an MP4, about 6.5 MB, with captions on screen. It shows the features included in .016.
 
@@ -92,7 +92,7 @@ The older `StreamSidekick` folder name is kept so updates do not lose existing r
 
 ### Tester setup
 
-See the [step-by-step tester guide](docs/tester-kit/README.md) if this is your first visit. On GitHub, download the file ending in **Setup.exe** from [Releases](https://github.com/ReallyJohnSmith/johns-twitch-handler/releases), not the source-code ZIP. If no Setup file is listed, ask me for the installer.
+See the [step-by-step tester guide](docs/tester-kit/README.md) if this is your first visit. On GitHub, download the file ending in **Setup.exe** from [Releases](https://github.com/yepitsjohn/johns-twitch-handler/releases), not the source-code ZIP. If no Setup file is listed, ask me for the installer.
 
 1. Run the supplied `Setup.exe` while you are not streaming.
 2. Open **John's Twitch Handler** from the Desktop or Start Menu.
@@ -107,7 +107,7 @@ Running a newer installer updates the Handler without removing saved connections
 The project requires Windows and the .NET 9 SDK.
 
 ```powershell
-git clone https://github.com/ReallyJohnSmith/johns-twitch-handler.git
+git clone https://github.com/yepitsjohn/johns-twitch-handler.git
 cd johns-twitch-handler
 dotnet restore .\StreamSidekick.sln --configfile .\NuGet.Config
 .\start-streamsidekick.ps1

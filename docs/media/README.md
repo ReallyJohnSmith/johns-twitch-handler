@@ -1,6 +1,6 @@
 # John's Twitch Handler: one-minute tour
 
-[Watch or download the video](https://github.com/ReallyJohnSmith/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.mp4) · [Download captions](https://github.com/ReallyJohnSmith/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.srt)
+[Watch or download the video](https://github.com/yepitsjohn/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.mp4) · [Download captions](https://github.com/yepitsjohn/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.srt)
 
 The tour covers setup checks, live controls, highlights, stream health, appearance choices, and the session review. It uses sample screens, not a tester's account or stream data.
 

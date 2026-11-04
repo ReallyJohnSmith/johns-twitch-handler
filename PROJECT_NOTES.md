@@ -11,7 +11,7 @@ to him personally while also being simple enough for nontechnical testers to dow
 
 Current approved version: **.016**
 
-Source repository: <https://github.com/ReallyJohnSmith/johns-twitch-handler>
+Source repository: <https://github.com/yepitsjohn/johns-twitch-handler>
 
 The Handler combines stream preparation, live controls, chat tools, viewer integrations, performance
 monitoring, and post-stream review in one local dashboard. Its central design rule is that a tool
@@ -264,7 +264,7 @@ dependency without a licensing, security, and maintenance review.
 
 The local project is connected to:
 
-<https://github.com/ReallyJohnSmith/johns-twitch-handler>
+<https://github.com/yepitsjohn/johns-twitch-handler>
 
 The primary branch is `main`. GitHub Actions builds the .NET solution and checks dashboard JavaScript
 syntax. Feature work should use focused commits or branches, preserve unrelated local changes, and

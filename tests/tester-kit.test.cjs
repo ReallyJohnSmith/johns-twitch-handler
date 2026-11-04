@@ -51,7 +51,7 @@ test('offline guide is self-contained, navigable, printable, and does not submit
 test('published tour links point to the approved video and captions in the repository', () => {
   const videoPath = 'docs/media/Johns-Twitch-Handler-60-Second-Tour.mp4';
   const captionsPath = 'docs/media/Johns-Twitch-Handler-60-Second-Tour.srt';
-  const downloadBase = 'https://github.com/ReallyJohnSmith/johns-twitch-handler/raw/refs/heads/main/';
+  const downloadBase = 'https://github.com/yepitsjohn/johns-twitch-handler/raw/refs/heads/main/';
   for (const name of ['README.md', 'docs/media/README.md', 'docs/tester-kit/README.md',
     'docs/tester-kit/KNOWN-LIMITATIONS.md', 'docs/tester-kit/INVITATION.md', guidePath]) {
     assert.ok(read(name).includes(downloadBase + videoPath), `${name}: missing video link`);

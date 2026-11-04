@@ -8,7 +8,7 @@ You do not need to be technical. If you get stuck, stop there and tell me what y
 
 You need a **64-bit Windows PC**, a browser, and internet access for downloads and account sign-in. Use the same PC that runs OBS. A Twitch account is only needed if you want to try the Twitch features. You do not need to install any programming tools.
 
-1. Open the [download page](https://github.com/ReallyJohnSmith/johns-twitch-handler/releases).
+1. Open the [download page](https://github.com/yepitsjohn/johns-twitch-handler/releases).
 2. Open the release John asked you to test. Under **Assets** (the file list), choose the file ending in **Setup.exe**.
 3. Ignore **Source code (zip)** and **Source code (tar.gz)**. Those are for people working on the program, not installing it.
 4. If there is no Setup file, or GitHub says you cannot access the page, ask John for a download. Do not try to build it yourself.
@@ -64,4 +64,4 @@ The [feedback guide](FEEDBACK.md) has a short message you can copy and an option
 - **A button or panel is missing:** check the version near the app name. This guide covers .016. Try Advanced mode for the full set of panels in your build.
 - **You moved panels and want them back:** if your build has **Reset layout**, read its confirmation first. It resets the arrangement, but keeps your account connections and appearance choices.
 
-Want a quick look first? [Watch or download the one-minute video](https://github.com/ReallyJohnSmith/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.mp4). It is an MP4, about 6.5 MB, with captions on screen. The video shows features included in .016. Downloading it needs internet access; this guide works without it.
+Want a quick look first? [Watch or download the one-minute video](https://github.com/yepitsjohn/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.mp4). It is an MP4, about 6.5 MB, with captions on screen. The video shows features included in .016. Downloading it needs internet access; this guide works without it.

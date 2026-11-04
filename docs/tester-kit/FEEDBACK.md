@@ -29,7 +29,7 @@ If you want to check, Windows shows its version under **Start → Settings → S
 
 ## Prefer GitHub?
 
-GitHub requires an account to submit a report. Use [Report a problem](https://github.com/ReallyJohnSmith/johns-twitch-handler/issues/new?template=problem.yml) or [Share your experience](https://github.com/ReallyJohnSmith/johns-twitch-handler/issues/new?template=feedback.yml). These forms become available when this kit is published to the repository. If they do not open, send John a private message instead.
+GitHub requires an account to submit a report. Use [Report a problem](https://github.com/yepitsjohn/johns-twitch-handler/issues/new?template=problem.yml) or [Share your experience](https://github.com/yepitsjohn/johns-twitch-handler/issues/new?template=feedback.yml). These forms become available when this kit is published to the repository. If they do not open, send John a private message instead.
 
 Treat GitHub reports as public. Never post passwords, sign-in codes, stream keys, access tokens, private chat, viewer notes, or unedited logs. Check screenshots for those details before sharing them.
 
