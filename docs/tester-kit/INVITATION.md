@@ -1,6 +1,6 @@
 # Tester invitation
 
-For John: send this only after the installer is uploaded and you have checked the download. Include the version you want tested. The video shows the development preview, not necessarily every feature in the installer's version.
+For John: attach the verified .016 installer directly, or upload it and check tester access before sending a download link. Include the version you want tested.
 
 ---
 
@@ -10,7 +10,7 @@ You don't need to be technical, and you don't need to go live. The first test sh
 
 Start with the [tester guide](https://github.com/ReallyJohnSmith/johns-twitch-handler/blob/main/docs/tester-kit/README.md). It explains which file to download and how to connect OBS.
 
-You can also [watch the one-minute tour](https://github.com/ReallyJohnSmith/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.mp4) for a quick look. Some features shown are coming in the next release.
+You can also [watch the one-minute tour](https://github.com/ReallyJohnSmith/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.mp4) for a quick look at features included in .016.
 
 Please try it while you're not streaming. It's an early test build, and Windows may show a warning when you open it. If you're unsure, ask me before continuing.
 

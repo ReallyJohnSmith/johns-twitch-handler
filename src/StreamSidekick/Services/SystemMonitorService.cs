@@ -205,7 +205,6 @@ public sealed class SystemMonitorService(SessionStore sessions, ILogger<SystemMo
         "firefox" => "Mozilla Firefox",
         "discord" => "Discord",
         "spotify" => "Spotify",
-        "chatgpt" or "codex" => "Desktop assistant",
         "dropbox" => "Dropbox",
         "steam" or "steamwebhelper" => "Steam",
         "msmpeng" => "Windows Defender",

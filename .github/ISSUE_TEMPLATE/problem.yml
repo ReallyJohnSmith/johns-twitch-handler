@@ -14,7 +14,7 @@ body:
     attributes:
       label: Which app version are you using?
       description: Look near the app name. If you cannot open it, write "not sure."
-      placeholder: "For example: .015 Tester, or not sure"
+      placeholder: "For example: .016 Tester, or not sure"
     validations:
       required: true
   - type: textarea

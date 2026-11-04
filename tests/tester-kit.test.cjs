@@ -10,7 +10,7 @@ const guidePath = 'src/StreamSidekick/wwwroot/tester-guide.html';
 const read = name => fs.readFileSync(path.join(root, name), 'utf8');
 const supportingFiles = ['README.md', 'CHECKLIST.md', 'FEEDBACK.md', 'KNOWN-LIMITATIONS.md'];
 const markdownFiles = [
-  'README.md', 'PROJECT_NOTES.md', 'RELEASE_WORKFLOW.md', 'docs/media/README.md',
+  'README.md', 'README-FOR-TESTERS.md', 'PROJECT_NOTES.md', 'RELEASE_WORKFLOW.md', 'docs/media/README.md',
   ...supportingFiles.map(name => `docs/tester-kit/${name}`),
   'docs/tester-kit/INVITATION.md',
 ];
@@ -20,6 +20,7 @@ test('tester-facing prose uses product branding and has no broken local document
     '.github/ISSUE_TEMPLATE/problem.yml', '.github/ISSUE_TEMPLATE/feedback.yml'];
   const assistantBranding = /chat\s*gpt|codex/i;
   for (const name of files) {
+    // Release branding includes link destinations as well as visible prose.
     assert.doesNotMatch(read(name), assistantBranding, name);
   }
   for (const name of markdownFiles) {

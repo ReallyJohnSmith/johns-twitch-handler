@@ -37,6 +37,12 @@
       </div>
     </header>
 
+    <section id="dashboard-startup" class="startup-notice" role="status" aria-live="polite">
+      <div><strong>Getting your dashboard ready</strong><p id="startup-message">Connecting to your Handler…</p></div>
+      <button id="retry-startup" class="secondary" type="button" hidden>Try again</button>
+      <a href="/tester-guide.html" target="_blank" rel="noopener">Setup help</a>
+    </section>
+
     <div class="workspace-layout">
       <!-- The three phase pages keep the busy live controls away from setup and review work. -->
       <nav class="phase-nav" aria-label="Stream workflow">
@@ -392,7 +398,7 @@
           <p class="helper">Changes apply directly to OBS. Live meters help you spot active sources before going live.</p>
         </section>
 
-        <!-- Dashboard embeds stay separate from the messages-only OBS overlay. -->
+        <!-- Twitch uses a local message list; external room controls stay outside the dashboard. -->
         <section class="panel chat-panel" data-panel-id="chat" data-pages="during">
           <div class="panel-heading">
             <div>
@@ -400,6 +406,7 @@
               <h3 id="chat-heading">Channel chat</h3>
             </div>
             <div class="panel-heading-actions">
+              <a id="open-twitch-chat" class="text-link" target="_blank" rel="noopener noreferrer" hidden>Open Twitch chat ↗</a>
               <button id="copy-chat-overlay" class="text-button">Copy OBS URL</button>
               <button id="chat-popout" class="text-button">Game overlay ↗</button>
             </div>
@@ -416,7 +423,7 @@
             <button id="test-chat-chime" class="text-button">Test</button>
           </div>
           <p id="chat-chime-status" class="helper">Checking viewer-safe OBS audio routing…</p>
-          <p class="helper">The OBS URL shows messages only. Twitch leaderboards and promotional panels stay off the broadcast.</p>
+          <p class="helper">Twitch messages appear here without headers, leaderboards, or promotions. Use Open Twitch chat for replies and moderation. The OBS URL also shows messages only.</p>
           <p class="helper">Enabled chats are displayed together. TikFinity adds read-only TikTok chat; bot replies and scheduled messages currently post to Twitch only.</p>
         </section>
 
@@ -990,12 +997,16 @@
 
       <section class="quick-setup" aria-labelledby="quick-setup-title">
         <span class="eyebrow">FIRST RUN</span>
-        <h4 id="quick-setup-title">Three simple steps</h4>
+        <h4 id="quick-setup-title">Start with OBS. Add the rest when you want.</h4>
         <ol>
-          <li>Open OBS and paste its WebSocket password below.</li>
-          <li>Click <strong>Connect with Twitch</strong> and approve the Handler.</li>
-          <li>Turn off any optional service you do not use.</li>
+          <li>Connect OBS below when you’re ready to try scene and audio controls.</li>
+          <li>Connect your own Twitch account if you want chat, alerts, or clips.</li>
+          <li>Choose the extra tools you use. Everything else can stay off.</li>
         </ol>
+        <button class="secondary" type="button" id="explore-without-setup">Look around first</button>
+        <p class="helper">You can explore the layout without connecting accounts. Come back to Settings whenever you’re ready.</p>
+        <details class="connection-diagnostics optional-setup">
+        <summary>Optional tools: Spotify, Tangia, and more</summary>
         <div class="optional-integration-choices">
           <div class="optional-choice"><strong>Use Spotify?</strong><div><button type="button" class="choice-button" data-integration-choice="spotify" data-enabled="true">Yes</button><button type="button" class="choice-button" data-integration-choice="spotify" data-enabled="false">No</button></div></div>
           <div class="optional-choice"><strong>Use Tangia?</strong><div><button type="button" class="choice-button" data-integration-choice="tangia" data-enabled="true">Yes</button><button type="button" class="choice-button" data-integration-choice="tangia" data-enabled="false">No</button></div></div>
@@ -1003,6 +1014,7 @@
           <div class="optional-choice"><strong>Use TikFinity for TikTok chat?</strong><div><button type="button" class="choice-button" data-integration-choice="tikfinity" data-enabled="true">Yes</button><button type="button" class="choice-button" data-integration-choice="tikfinity" data-enabled="false">No</button></div></div>
         </div>
         <small class="optional-choice-help">Choose No to hide that tool and mark it blue as intentionally skipped in Preflight. You can change this at any time.</small>
+        </details>
       </section>
 
       <section class="privacy-notice" aria-label="Tester privacy">
@@ -1013,9 +1025,14 @@
       <p class="helper">Trying the app for the first time? Open the <a href="/tester-guide.html" target="_blank" rel="noopener">Tester guide</a> for setup help and a short off-stream checklist.</p>
 
       <fieldset>
-        <legend>OBS WebSocket</legend>
-        <label>Password<input id="obs-password" type="password" placeholder="OBS WebSocket password" autocomplete="off"></label>
+        <legend>OBS connection</legend>
+        <details class="connection-diagnostics">
+          <summary>Where do I find my OBS password?</summary>
+          <ol><li>In OBS, open <strong>Tools → WebSocket Server Settings</strong>.</li><li>Enable the server and keep authentication enabled.</li><li>Choose <strong>Show Connect Info</strong>, then copy the server password.</li></ol>
+        </details>
+        <label>OBS password<input id="obs-password" type="password" placeholder="Paste the server password from OBS" autocomplete="off"></label>
         <button type="button" id="connect-obs" class="primary">Connect OBS</button>
+        <p id="obs-connection-message" class="message" role="status"></p>
         <small>Find this in OBS under Tools → WebSocket Server Settings. After a successful connection, the address and password are encrypted for your Windows account and reused automatically.</small>
         <details class="connection-diagnostics">
           <summary>Advanced: nonstandard OBS address</summary>
@@ -1074,6 +1091,7 @@
   </dialog>
 
   <div id="toast" class="toast" role="status"></div>
+  <script src="dashboard-runtime.js?v=015"></script>
   <script src="layout-defaults.js?v=015"></script>
   <script src="app.js?v=015"></script>
 </body>

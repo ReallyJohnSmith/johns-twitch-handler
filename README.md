@@ -2,19 +2,29 @@
 
 John's Twitch Handler is a Windows app I built to make running a stream easier.
 
+This folder is the independent **Twitch Helper** project. Open `Twitch Helper.code-workspace`
+in your editor. The existing `StreamSidekick.sln`
+is the Visual Studio entry point. See `AGENTS.md` for the working scope and `CONTRIBUTING.md`
+for build instructions. The personal calendar lives separately in `../our-days-calendar/`.
+
 Instead of jumping between OBS, Twitch, Spotify, performance tools, and notes, the Handler keeps the things I use most in one dashboard. It helps me get ready before I go live, keep an eye on the stream while I am playing, and review the important moments afterward.
 
 Everything runs locally on the streaming computer. Connections, reports, viewer notes, and preferences are not synced to a separate service.
 
-The current approved release is **.015**. The `main` branch may contain newer work that has not been packaged into a numbered release yet.
+The current approved release is **.016**. The `main` branch may contain newer work that has not been packaged into a numbered release yet.
 
 ## One-minute tour
 
 [Watch or download the video](https://github.com/ReallyJohnSmith/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.mp4) · [Download captions](https://github.com/ReallyJohnSmith/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.srt)
 
-A quick look at getting ready, keeping stream controls nearby, saving highlights, and reviewing a session. The video is an MP4, about 6.5 MB, with captions on screen. It shows the development preview, including some features waiting for the next numbered release.
+A quick look at getting ready, keeping stream controls nearby, saving highlights, and reviewing a session. The video is an MP4, about 6.5 MB, with captions on screen. It shows the features included in .016.
 
 ## Trying it out?
+
+New here? Start with the short [README for testers](README-FOR-TESTERS.md).
+Website hosting is still an exploratory idea. John can review the
+[website concept README](website/README.md); tester instructions currently focus on the Windows app.
+The [product review](docs/PRODUCT-REVIEW.md) covers the latest usability and efficiency improvements, verification, and remaining priorities.
 
 Start with the [tester guide](docs/tester-kit/README.md). It walks through downloading the app, getting connected, and a short first test. You do not need to write code or install developer tools.
 
@@ -40,7 +50,7 @@ The live dashboard keeps the most useful controls close by:
 - Manage Spotify song requests.
 - Watch stream health without digging through several OBS windows.
 
-The upcoming release adds separate RPG and FPS profiles, including kill and death markers and keyboard shortcuts for FPS sessions. World of Warcraft addon tools are currently paused and hidden by default.
+Release .016 adds separate RPG and FPS profiles, including kill and death markers and keyboard shortcuts for FPS sessions. World of Warcraft addon tools are currently paused and hidden by default.
 
 ### After the stream
 
@@ -54,15 +64,15 @@ The Handler includes Simple and Advanced modes.
 
 Simple mode focuses on the current status and the next action I need to take. Advanced mode shows the full dashboard. If I only need one Advanced tool, I can add that panel to Simple mode without enabling everything else.
 
-Panels can be moved, resized, collapsed, floated, docked, or stacked as tabs. The layout is saved locally. The upcoming **Reset layout** option restores the recommended arrangement without removing connections, themes, or other preferences.
+Panels can be moved, resized, collapsed, floated, docked, or stacked as tabs. The layout is saved locally. The **Reset layout** option restores the recommended arrangement without removing connections, themes, or other preferences.
 
-The current source includes three visual styles; Tactical Console is waiting for the next numbered release:
+Release .016 includes three visual styles:
 
 - **Broadcast Console** is compact and practical.
 - **Vibe Dashboard** uses rounder cards and more spacing.
 - **Tactical Console** uses squared controls, darker surfaces, and amber accents.
 
-The next release will start new installations with **Broadcast Console**, the **Ocean** theme, and the **RPG** game profile. Existing installations keep the choices that were already saved.
+New installations start with **Broadcast Console**, the **Ocean** theme, and the **RPG** game profile. Existing installations keep the choices that were already saved.
 
 ## Privacy
 
@@ -122,6 +132,8 @@ Then open <http://127.0.0.1:5274/>.
 The Handler continues watching OBS even when the dashboard tab is closed. Starting a stream creates or resumes a session. Stopping the stream finishes the report.
 
 ## Connecting Twitch
+
+The dashboard shows a clean, read-only Twitch message list without the Stream Chat header, gift leaderboard, or promotional panels. Use **Open Twitch chat** for replies, emotes, and Twitch's moderation controls. Connect Twitch in Settings to receive messages in the Handler.
 
 Tester builds use Twitch's device authorization flow. Select **Connect with Twitch**, approve the connection in the browser, and the Handler will reconnect automatically the next time it starts.
 
@@ -188,6 +200,7 @@ dotnet restore .\StreamSidekick.sln --configfile .\NuGet.Config
 dotnet build .\StreamSidekick.sln --configuration Release --no-restore
 node --check .\src\StreamSidekick\wwwroot\app.js
 node --test .\tests\music-overlay.test.cjs
+node --test .\tests\chat-dashboard.test.cjs
 node --test .\tests\layout-defaults.test.cjs
 node --test .\tests\tester-kit.test.cjs
 dotnet run --project .\tests\MusicOverlayChecks --configuration Release --no-restore

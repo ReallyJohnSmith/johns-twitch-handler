@@ -13,6 +13,18 @@ function Test-HandlerHealth {
 }
 
 try {
+    # Website packages reuse the running helper; failures use the same visible
+    # troubleshooting message as the ordinary local launcher.
+    $settingsFile = Join-Path $packageRoot 'appsettings.json'
+    if (Test-Path -LiteralPath $settingsFile) {
+        $websiteSettings = (Get-Content -LiteralPath $settingsFile -Raw | ConvertFrom-Json).WebsiteBridge
+        if ($websiteSettings.StartOnSignIn -and $websiteSettings.WebsiteOrigin) {
+            & (Join-Path $packageRoot 'Start-WebsiteHelper.ps1')
+            if ($LASTEXITCODE -ne 0) { throw 'The website helper could not start.' }
+            Start-Process $websiteSettings.WebsiteOrigin
+            exit 0
+        }
+    }
     # Reopening the launcher is a clean restart. This prevents an old copy from holding the port and
     # guarantees that the browser shows the build in this folder.
     Get-Process -Name @("John's Twitch Handler", 'StreamSidekick', 'JohnsTwitchHandler') -ErrorAction SilentlyContinue |

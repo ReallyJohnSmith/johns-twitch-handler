@@ -36,6 +36,8 @@ const state = {
   manualPreflightItems: [],
   ads: null,
   chatChime: null,
+  twitchChatFeed: null,
+  twitchChatBusy: false,
   chatCommands: [],
   automations: [],
   raids: { channels: [], history: [], warning: null },
@@ -106,23 +108,10 @@ function initializeGameProfile() {
   }));
 }
 
-async function api(path, options = {}) {
-  let response;
-  try {
-    response = await fetch(path, {
-      ...options,
-      headers: { "Content-Type": "application/json", ...(options.headers || {}) }
-    });
-  } catch {
-    throw new Error("John's Twitch Handler is not running. Start “John's Twitch Handler.cmd”, wait for the dashboard to open, then try again.");
-  }
-  const text = await response.text();
-  let data = null;
-  try { data = text ? JSON.parse(text) : null; }
-  catch { data = text || null; }
-  if (!response.ok) throw new Error(data?.error || `Request failed (${response.status})`);
-  return data;
-}
+const dashboardRequests = HandlerDashboardRuntime.createApiClient({
+  fetch: (path, options) => (window.HandlerConnection?.fetch || fetch)(path, options)
+});
+function api(path, options = {}) { return dashboardRequests.request(path, options); }
 
 // --- Shared UI feedback and preflight ---------------------------------------------------------
 
@@ -1252,19 +1241,33 @@ async function refreshPerformance() {
     ]);
     state.system = snapshot;
     state.internet = internet;
+    state.performanceError = null;
     const current = snapshot.current;
-    setGauge("cpu", current.cpuPercent);
-    setGauge("gpu", current.gpuPercent);
-    setGauge("vram", current.vramPercent);
-    setGauge("ram", current.memoryPercent);
-    $("#gpu-name").textContent = current.gpuName || "GPU monitor unavailable";
-    $("#gpu-temp").textContent = current.gpuTemperatureC == null ? "--°C" : `${Math.round(current.gpuTemperatureC)}°C`;
-    drawPerformanceChart(snapshot.history || []);
-    renderResourceDrains(snapshot.resourceDrains || []);
-    renderInternetStatus(internet);
+    // Simple health still receives fresh data when raw diagnostics are hidden.
+    // Charts and process rows need repainting only when their panel is visible.
+    if (document.querySelector('[data-panel-id="performance"]')?.getClientRects().length) {
+      setGauge("cpu", current.cpuPercent);
+      setGauge("gpu", current.gpuPercent);
+      setGauge("vram", current.vramPercent);
+      setGauge("ram", current.memoryPercent);
+      $("#gpu-name").textContent = current.gpuName || "GPU monitor unavailable";
+      $("#gpu-temp").textContent = current.gpuTemperatureC == null ? "--°C" : `${Math.round(current.gpuTemperatureC)}°C`;
+      drawPerformanceChart(snapshot.history || []);
+      renderResourceDrains(snapshot.resourceDrains || []);
+      renderInternetStatus(internet);
+    }
     evaluateHeadroom();
-  } catch {
+  } catch (error) {
+    state.system = null;
+    state.internet = null;
+    state.performanceError = error.message;
     $("#performance-state").textContent = "Unavailable";
+    $("#performance-warning").textContent = error.message;
+    $("#performance-warning").classList.remove("alert");
+    setHeadroomSignal("#headroom-value", "--", "warn");
+    setHeadroomSignal("#network-health", "Unavailable", "warn");
+    $("#internet-current").textContent = "Internet monitoring could not be refreshed.";
+    $("#internet-current").className = "internet-current warn";
     renderSimpleExperience();
   }
 }
@@ -1443,6 +1446,7 @@ async function runOptimizerAction(path) {
 function loadChat(channelName) {
   const channel = String(channelName || "").trim().toLowerCase();
   if (!channel) return;
+  if (channel !== state.channelName) state.twitchChatFeed = null;
   state.channelName = channel;
   localStorage.setItem("streamsidekick.channel", channel);
   $("#twitch-channel-name").value = channel;
@@ -1468,6 +1472,10 @@ function renderCombinedChat() {
   const youtube = state.youtubeVideoId;
   const parent = window.location.hostname;
   const wrap = $("#chat-frame-wrap");
+  const twitchLink = $("#open-twitch-chat");
+  twitchLink.hidden = !channel;
+  if (channel) twitchLink.href = `https://www.twitch.tv/popout/${encodeURIComponent(channel)}/chat?popout=`;
+  else twitchLink.removeAttribute("href");
   if (!channel && !youtube && !state.tikFinityEnabled) {
     $("#chat-heading").textContent = "Channel chat";
     wrap.className = "chat-frame-wrap empty-state";
@@ -1477,8 +1485,9 @@ function renderCombinedChat() {
   const chats = [];
   const chatNames = [];
   if (channel) {
-    const src = `https://www.twitch.tv/embed/${encodeURIComponent(channel)}/chat?parent=${encodeURIComponent(parent)}&darkpopout`;
-    chats.push(`<div class="chat-column"><strong>TWITCH</strong><iframe title="${escapeHtml(channel)} Twitch chat" src="${src}" allowfullscreen></iframe></div>`);
+    // A local message list avoids the header, leaderboards, and promotions inside Twitch's
+    // cross-origin embed. The external link keeps Twitch's reply/moderation tools available.
+    chats.push(`<div class="chat-column"><strong>TWITCH</strong><div class="twitch-chat-stream"><div id="twitch-chat-list" class="twitch-chat-list empty-state" role="log" aria-label="${escapeHtml(channel)} Twitch messages" aria-live="polite" aria-relevant="additions text">Loading Twitch messages…</div><p id="twitch-chat-status" class="chat-feed-status" role="status" hidden></p></div></div>`);
     chatNames.push("Twitch");
   }
   if (youtube) {
@@ -1493,7 +1502,54 @@ function renderCombinedChat() {
   $("#chat-heading").textContent = chatNames.length > 1 ? `${chatNames.join(" + ")} chat` : chatNames[0] === "Twitch" ? `${channel} chat` : `${chatNames[0]} live chat`;
   wrap.className = `chat-frame-wrap${chats.length > 1 ? ` multiplatform platform-count-${chats.length}` : ""}`;
   wrap.innerHTML = chats.join("");
+  renderTwitchChat();
   renderTikFinity();
+}
+
+function renderTwitchChat() {
+  const list = $("#twitch-chat-list");
+  const status = $("#twitch-chat-status");
+  if (!list || !status) return;
+  const feed = state.twitchChatFeed;
+  const rows = Array.isArray(feed?.messages) ? feed.messages.slice(-80) : [];
+  status.hidden = !feed || feed.connected === true;
+  status.textContent = status.hidden ? "" : "Twitch chat is disconnected. Reconnect Twitch in Settings.";
+  const signature = JSON.stringify({ connected: feed?.connected, rows });
+  if (list.dataset.signature === signature) return;
+  const followNewest = !list.dataset.signature || list.scrollHeight - list.scrollTop - list.clientHeight < 32;
+  const previousScrollTop = list.scrollTop;
+  list.dataset.signature = signature;
+  list.className = `twitch-chat-list${rows.length ? "" : " empty-state"}`;
+  if (rows.length) {
+    list.innerHTML = rows.map(message => `<div class="twitch-chat-message"><strong>${escapeHtml(message.userName)}</strong><span>${escapeHtml(message.text)}</span></div>`).join("");
+  } else {
+    list.textContent = !feed ? "Loading Twitch messages…"
+      : feed.connected ? "Waiting for new Twitch messages. If chat stays empty, reconnect Twitch in Settings."
+      : "Connect with Twitch in Settings to see messages here.";
+  }
+  // Follow live chat unless the streamer has deliberately scrolled back to read something.
+  list.scrollTop = followNewest ? list.scrollHeight : previousScrollTop;
+}
+
+async function refreshTwitchChat() {
+  const channel = state.channelName;
+  const list = $("#twitch-chat-list");
+  if (!channel || !list || !list.getClientRects().length || state.twitchChatBusy) return;
+  state.twitchChatBusy = true;
+  try {
+    const feed = await api("/api/chat/messages", { cache: "no-store", signal: AbortSignal.timeout(4000) });
+    if (state.channelName !== channel) return;
+    state.twitchChatFeed = feed;
+    renderTwitchChat();
+  } catch {
+    if (state.channelName !== channel) return;
+    state.twitchChatFeed = { connected: false, messages: state.twitchChatFeed?.messages || [] };
+    renderTwitchChat();
+    const status = $("#twitch-chat-status");
+    if (status) status.textContent = "Chat is temporarily unavailable. Retrying…";
+  } finally {
+    state.twitchChatBusy = false;
+  }
 }
 
 async function openGameChat() {
@@ -1943,6 +1999,10 @@ function renderSimpleManualReminders() {
 }
 
 function getSimpleHealthSummary() {
+  if (state.performanceError) return {
+    level: "warning", state: "Unavailable", title: "Stream health could not be refreshed",
+    detail: state.performanceError
+  };
   const current = state.system?.current;
   const internetStatus = state.internet?.status || "checking";
   if (!current || internetStatus === "checking") return {
@@ -2062,13 +2122,13 @@ function setSimpleSummary(model) {
 function getSimplePreStreamModel() {
   const preflight = state.preflight;
   const readiness = getReadinessAssessment();
-  const internetStatus = state.internet?.status || "checking";
+  const internetStatus = state.performanceError ? "unavailable" : state.internet?.status || "checking";
   const internetLevel = readiness.internetReady ? "ready" : internetStatus === "offline" ? "critical" : "warning";
   const items = [
     { label: "OBS", status: preflight?.obsConnected ? "Connected" : "Not connected", level: preflight?.obsConnected ? "ready" : "warning" },
     { label: "Twitch", status: preflight?.twitchRewardsReady ? "Connected" : "Needs attention", level: preflight?.twitchRewardsReady ? "ready" : "warning" },
     { label: "Microphone", status: preflight?.microphoneReady ? "Ready" : "Needs attention", level: preflight?.microphoneReady ? "ready" : "warning" },
-    { label: "Internet", status: readiness.internetReady ? "Healthy" : internetStatus === "checking" ? "Checking" : "Needs attention", level: internetLevel }
+    { label: "Internet", status: readiness.internetReady ? "Healthy" : internetStatus === "checking" ? "Checking" : internetStatus === "unavailable" ? "Unavailable" : "Needs attention", level: internetLevel }
   ];
 
   if (!preflight) return {
@@ -2108,6 +2168,10 @@ function getSimplePreStreamModel() {
 }
 
 function getSimpleDuringModel() {
+  if (state.performanceError) return {
+    level: "warning", icon: "!", question: "IS EVERYTHING OKAY?", title: "HEALTH UNAVAILABLE",
+    detail: state.performanceError, items: [], action: "show-health", actionLabel: "Review connection"
+  };
   const current = state.system?.current;
   if (!current) return {
     level: "neutral", icon: "…", question: "IS EVERYTHING OKAY?", title: "Checking stream health",
@@ -2190,7 +2254,7 @@ function renderDuringStatusStrip(page, model = getSimpleDuringModel()) {
   strip.hidden = page !== "during";
   if (page !== "during") return;
   const level = model.level === "critical" ? "critical" : model.level === "warning" ? "warning" : model.level === "healthy" ? "healthy" : "neutral";
-  const title = level === "critical" ? "STREAM AT RISK" : level === "warning" ? "PERFORMANCE PRESSURE" : level === "healthy" ? "STREAM HEALTHY" : model.title === "STREAM NOT ACTIVE" ? "STREAM NOT ACTIVE" : "CHECKING STREAM";
+  const title = model.title === "HEALTH UNAVAILABLE" ? "HEALTH UNAVAILABLE" : level === "critical" ? "STREAM AT RISK" : level === "warning" ? "PERFORMANCE PRESSURE" : level === "healthy" ? "STREAM HEALTHY" : model.title === "STREAM NOT ACTIVE" ? "STREAM NOT ACTIVE" : "CHECKING STREAM";
   strip.className = `live-status-strip ${level}`;
   $("#live-status-symbol").textContent = level === "critical" || level === "warning" ? "▲" : level === "healthy" ? "●" : "■";
   $("#live-status-title").textContent = title;
@@ -2199,6 +2263,7 @@ function renderDuringStatusStrip(page, model = getSimpleDuringModel()) {
   $("#live-status-time").textContent = state.sessionActive && Number.isFinite(startedAt)
     ? formatOffset(Math.max(0, (Date.now() - startedAt) / 1000))
     : state.sessionActive ? "TRACKING" : "NOT TRACKING";
+  $("#live-status-fix").textContent = model.title === "HEALTH UNAVAILABLE" ? "Review connection" : "Fix It";
   $("#live-status-fix").hidden = level !== "critical" && level !== "warning";
 }
 
@@ -2618,7 +2683,7 @@ async function initializeMovablePanels() {
     localStorage.setItem(panelPagesStorageKey, JSON.stringify(panelPages));
     saveFloatingPanels();
     savePanelTabGroups();
-    fetch("/api/dashboard-layout", {
+    (window.HandlerConnection?.fetch || fetch)("/api/dashboard-layout", {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ panelOrder, panelPages }),
@@ -3686,6 +3751,10 @@ function openSettings() {
 }
 
 $("#settings-button").addEventListener("click", openSettings);
+$("#explore-without-setup").addEventListener("click", () => {
+  localStorage.setItem("streamsidekick.setupSeen", "true");
+  $("#settings-dialog").close();
+});
 $$('[data-open-settings]').forEach(button => button.addEventListener("click", openSettings));
 $("#customize-simple").addEventListener("click", () => {
   renderSimpleCustomization();
@@ -3806,7 +3875,7 @@ $("#streamelements-confirmed").addEventListener("change", async event => {
 });
 $("#chat-popout").addEventListener("click", openGameChat);
 $("#copy-chat-overlay").addEventListener("click", async () => {
-  const url = `${window.location.origin}/chat-overlay.html`;
+  const url = `${window.HandlerConnection?.helperOrigin || window.location.origin}/chat-overlay.html`;
   try {
     await navigator.clipboard.writeText(url);
     toast("Messages-only OBS chat URL copied.");
@@ -4079,7 +4148,7 @@ $("#launch-nvidia").addEventListener("click", async () => {
   } catch (error) { toast(error.message, true); }
 });
 $("#copy-music-overlay-url").addEventListener("click", async () => {
-  const url = `${window.location.origin}/music-overlay.html`;
+  const url = `${window.HandlerConnection?.helperOrigin || window.location.origin}/music-overlay.html`;
   try {
     await navigator.clipboard.writeText(url);
     toast("Music overlay URL copied. Paste it into an OBS Browser Source.");
@@ -4088,7 +4157,11 @@ $("#copy-music-overlay-url").addEventListener("click", async () => {
   }
 });
 $("#connect-obs").addEventListener("click", async () => {
-  const message = $("#settings-message");
+  const message = $("#obs-connection-message");
+  const button = $("#connect-obs");
+  if (button.disabled) return;
+  button.disabled = true;
+  button.textContent = "Connecting to OBS…";
   try {
     message.textContent = "Connecting…";
     state.obs = await api("/api/obs/connect", {
@@ -4096,11 +4169,16 @@ $("#connect-obs").addEventListener("click", async () => {
       body: JSON.stringify({ url: $("#obs-url").value, password: $("#obs-password").value })
     });
     message.textContent = "OBS connected.";
+    $("#obs-password").value = "";
     renderObs();
     await refreshAudio(true);
     await refreshPreflight();
   } catch (error) { message.textContent = `OBS: ${error.message}`; }
-  finally { await refreshConnectionDiagnostics(); }
+  finally {
+    button.disabled = false;
+    button.textContent = "Connect OBS";
+    await refreshConnectionDiagnostics();
+  }
 });
 $("#connect-twitch").addEventListener("click", async () => {
   const message = $("#settings-message");
@@ -4415,74 +4493,105 @@ document.addEventListener("keydown", event => {
   if (state.gameProfile === "fps" && event.shiftKey && event.key.toLowerCase() === "d") { event.preventDefault(); addFpsMarker("death"); }
 });
 
-// Recursive timeouts wait for each request to finish. setInterval could stack duplicate Spotify/OBS
-// calls during a slow response, which wastes resources precisely when the stream PC is under load.
-function startPolling(task, delayMs, panelId = null) {
-  const tick = async () => {
-    try {
-      const panel = panelId ? document.querySelector(`[data-panel-id="${CSS.escape(panelId)}"]`) : null;
-      // A collapsed card is deliberately out of use. Keep global readiness checks alive, but let
-      // optional cards sleep until the streamer expands them again.
-      if (!document.hidden
-          && !panel?.classList.contains("collapsed")
-          && !panel?.classList.contains("workspace-hidden")
-          && !panel?.classList.contains("game-profile-hidden")
-          && !panel?.classList.contains("tab-hidden")) await task();
-    } catch (error) {
-      console.debug("Background dashboard refresh failed.", error);
-    } finally {
-      window.setTimeout(tick, delayMs);
-    }
-  };
-  window.setTimeout(tick, delayMs);
+// Suspend browser polling while hidden. The Windows services keep monitoring;
+// returning to the dashboard refreshes once without overlapping an existing read.
+const dashboardPolling = HandlerDashboardRuntime.createPoller({
+  setTimeout: (task, delay) => window.setTimeout(task, delay),
+  clearTimeout: timer => window.clearTimeout(timer),
+  paused: document.hidden,
+  onError: error => console.debug("Background dashboard refresh failed.", error)
+});
+document.addEventListener("visibilitychange", () => dashboardPolling.setPaused(document.hidden));
+function startPolling(task, delayMs, panelId = null, visibleOnly = false) {
+  return dashboardPolling.add(task, delayMs, () => {
+    const panel = panelId ? document.querySelector(`[data-panel-id="${CSS.escape(panelId)}"]`) : null;
+    if (panelId && !panel) return false;
+    return !panel?.classList.contains("collapsed")
+      && !panel?.classList.contains("workspace-hidden")
+      && !panel?.classList.contains("game-profile-hidden")
+      && !panel?.classList.contains("tab-hidden")
+      && (!visibleOnly || Boolean(panel?.getClientRects().length));
+  });
 }
 
-async function boot() {
-  loadManualPreflightItems();
-  renderManualPreflightItems();
-  loadPreflightVisibility();
-  if (state.channelName) loadChat(state.channelName);
-  else renderCombinedChat();
-  $("#twitch-client-id").value = localStorage.getItem("streamsidekick.twitchClientId") || "";
-  $("#spotify-client-id").value = localStorage.getItem("streamsidekick.spotifyClientId") || "";
-  $("#youtube-live-url").value = state.youtubeVideoId ? `https://www.youtube.com/watch?v=${state.youtubeVideoId}` : "";
-  $("#raid-range").value = String([7, 14, 31].includes(state.raidDays) ? state.raidDays : 31);
-  await loadSetupConfiguration();
-  const startupTasks = [refreshPreflight(), refreshObs(), refreshAudio(), refreshReport(false), refreshStreamHistory(), refreshPerformance(), loadProfileAnalysis(), refreshOptimizerStatus(), refreshAlerts(), refreshChatChime(), refreshSpotify(), refreshTangia(), refreshStreamElements(), refreshTikFinity(), refreshAds(), refreshChatCommands(), refreshAutomations(), refreshRaids(true), refreshViewerNotes(), refreshWardogsStatus()];
-  // WoW tools are temporarily out of the product. Keeping their work out of this list also prevents
-  // hidden cards from scanning game files or polling combat logs in the background.
-  if (state.setup.wowToolsEnabled === true) {
-    startupTasks.push(loadWowAddons(), loadAddonPresets(), refreshWowEvents());
-  }
-  await Promise.all(startupTasks);
-  // A first-time tester should land directly on the short setup checklist instead of hunting for
-  // the gear icon. Once dismissed, normal launches return straight to the dashboard.
-  if (!localStorage.getItem("streamsidekick.setupSeen")
-      && (!state.preflight?.obsConnected || !state.preflight?.twitchConfigured)) {
-    localStorage.setItem("streamsidekick.setupSeen", "true");
-    openSettings();
-  }
+let startupInProgress = false;
+let dashboardPollingStarted = false;
+let dashboardInitialized = false;
+function showStartupMessage(message, retry = false) {
+  $("#dashboard-startup").hidden = !message;
+  $("#dashboard-startup").classList.toggle("warning", retry);
+  $("#startup-message").textContent = message || "";
+  $("#retry-startup").hidden = !retry;
+}
+
+function startDashboardPolling() {
+  if (dashboardPollingStarted) return;
+  dashboardPollingStarted = true;
   startPolling(refreshObs, 5000);
-  startPolling(refreshAudio, 1000, "audio");
-  startPolling(refreshPerformance, 3000, "performance");
+  startPolling(refreshAudio, 1000, "audio", true);
+  // Simple mode needs current health even when raw performance panels are hidden.
+  startPolling(refreshPerformance, 3000);
   startPolling(refreshAlerts, 4000, "alerts");
   startPolling(refreshChatChime, 8000, "chat");
+  startPolling(refreshTwitchChat, 1200, "chat");
   startPolling(refreshPreflight, 8000);
   startPolling(refreshOptimizerStatus, 5000, "optimizer");
   if (state.setup.wowToolsEnabled === true) startPolling(refreshWowEvents, 2000, "wow-events");
   startPolling(refreshSpotify, 5000);
   startPolling(refreshTangia, 5000);
-  // Plugin installation rarely changes, so this intentionally sleeps much longer than live data.
   startPolling(refreshStreamElements, 60000, "streamelements");
   startPolling(refreshTikFinity, 2500, "tikfinity");
   startPolling(refreshAds, 4000, "ads");
   startPolling(() => refreshReport(false), 15000, "report");
   startPolling(refreshViewerNotes, 30000, "viewers");
   startPolling(refreshAutomations, 15000, "automations");
-  // Countdown repaint is local only; no network or OBS work is performed every second.
-  window.setInterval(renderAds, 1000);
-  window.setInterval(() => renderDuringStatusStrip(document.body.dataset.workspacePage || "pre"), 1000);
+  // Countdown repaint stays browser-local and skips work in a hidden tab.
+  window.setInterval(() => { if (!document.hidden) renderAds(); }, 1000);
+  window.setInterval(() => { if (!document.hidden) renderDuringStatusStrip(document.body.dataset.workspacePage || "pre"); }, 1000);
 }
+
+async function boot() {
+  if (startupInProgress) return;
+  startupInProgress = true;
+  showStartupMessage("Connecting to your Handler and checking saved settings…");
+  try {
+    loadManualPreflightItems();
+    renderManualPreflightItems();
+    loadPreflightVisibility();
+    if (state.channelName) loadChat(state.channelName);
+    else renderCombinedChat();
+    $("#twitch-client-id").value = localStorage.getItem("streamsidekick.twitchClientId") || "";
+    $("#spotify-client-id").value = localStorage.getItem("streamsidekick.spotifyClientId") || "";
+    $("#youtube-live-url").value = state.youtubeVideoId ? `https://www.youtube.com/watch?v=${state.youtubeVideoId}` : "";
+    $("#raid-range").value = String([7, 14, 31].includes(state.raidDays) ? state.raidDays : 31);
+    await loadSetupConfiguration();
+    const startupTasks = [
+      refreshPreflight(), refreshObs(), refreshAudio(), refreshReport(false), refreshStreamHistory(),
+      refreshPerformance(), loadProfileAnalysis(), refreshOptimizerStatus(), refreshAlerts(),
+      refreshChatChime(), refreshSpotify(), refreshTangia(), refreshStreamElements(), refreshTikFinity(),
+      refreshAds(), refreshChatCommands(), refreshAutomations(), refreshRaids(true), refreshViewerNotes(), refreshWardogsStatus()
+    ];
+    if (state.setup.wowToolsEnabled === true) startupTasks.push(loadWowAddons(), loadAddonPresets(), refreshWowEvents());
+    const results = await Promise.allSettled(startupTasks);
+    // OBS is the first setup step. Twitch is optional; an active stream should
+    // never be interrupted by an automatic setup dialog.
+    if (!localStorage.getItem("streamsidekick.setupSeen") && !state.preflight?.obsConnected && !state.sessionActive) {
+      localStorage.setItem("streamsidekick.setupSeen", "true");
+      openSettings();
+    }
+    startDashboardPolling();
+    const incomplete = results.some(result => result.status === "rejected");
+    showStartupMessage(incomplete
+      ? "Some tools could not refresh yet. You can try again; your connected tools are still available." : null, incomplete);
+  } catch (error) {
+    showStartupMessage(error.message || "The dashboard could not finish opening. Try again.", true);
+  } finally {
+    startupInProgress = false;
+  }
+}
+$("#retry-startup").addEventListener("click", () => {
+  if (dashboardInitialized) boot(); else window.location.reload();
+});
 async function startDashboard() {
   initializeVisualStyle();
   initializeTheme();
@@ -4491,8 +4600,9 @@ async function startDashboard() {
   renderGuidedDemo();
   await initializeMovablePanels();
   initializeWorkspaceNavigation();
+  dashboardInitialized = true;
   await boot();
   // If the app restarts during an active show, return directly to the live controls.
   if (state.sessionActive) setActiveWorkspace("during", { persist: true });
 }
-startDashboard();
+startDashboard().catch(error => showStartupMessage(error.message || "The dashboard could not open. Try again.", true));

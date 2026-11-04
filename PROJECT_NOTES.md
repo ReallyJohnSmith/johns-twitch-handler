@@ -9,7 +9,7 @@ John's Twitch Handler is a lightweight Windows streaming companion created prima
 use on his own Twitch channel. John is the primary user and tester. The product should remain useful
 to him personally while also being simple enough for nontechnical testers to download and open.
 
-Current approved version: **.015**
+Current approved version: **.016**
 
 Source repository: <https://github.com/ReallyJohnSmith/johns-twitch-handler>
 

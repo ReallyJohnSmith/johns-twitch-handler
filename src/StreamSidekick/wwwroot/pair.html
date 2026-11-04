@@ -1,0 +1,14 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Connect your website · John's Twitch Handler</title><link rel="stylesheet" href="website-connect.css"></head>
+<body class="connection-page"><main class="connection-card">
+<span class="connection-eyebrow">JOHN'S TWITCH HANDLER · WINDOWS HELPER</span>
+<h1>Connect your dashboard.</h1><p>Approve the website below to control this computer's Handler, including OBS, account connections, and local tools.</p>
+<p id="website-origin" class="connection-origin">Loading the configured website…</p>
+<button id="create-code" class="connection-primary" disabled>Approve and create pairing code</button>
+<p id="pair-message" role="status"></p><output id="pair-code" class="connection-code" aria-label="Pairing code"></output>
+<p id="code-help" hidden>Enter this code on the website within five minutes. It can be used once. Share it only with your own dashboard.</p>
+<a id="open-website" hidden target="_blank" rel="noopener noreferrer">Open website dashboard ↗</a>
+<h2>Connected browsers</h2><p>Remove a connection to immediately stop that browser's access.</p><div id="paired-browsers"></div>
+<a href="/">Open local dashboard</a>
+</main><script src="pair.js"></script></body></html>

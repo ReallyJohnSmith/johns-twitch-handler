@@ -6,9 +6,9 @@ This is a test build. Please use it off-stream first, and keep your usual OBS co
 
 ## Which version am I testing?
 
-Look for **Version** near the app name. Include that number in feedback. The last approved version is **.015**; this kit does not announce a newer release or confirm that an installer has been uploaded.
+Look for **Version** near the app name. Include that number in feedback. This kit accompanies **.016**. Use the installer supplied by John; a guide alone does not confirm that an installer has been uploaded.
 
-The GitHub source can describe work that is not in your installed copy yet. Tactical Console, the new Broadcast/Ocean/RPG defaults, Reset layout, and FPS kill/death tools are listed under **Unreleased** in the [release notes](https://github.com/ReallyJohnSmith/johns-twitch-handler/blob/main/CHANGELOG.md). Skip checklist items that are not in your build. Their absence in .015 is not a new bug.
+Release .016 includes Tactical Console, Broadcast/Ocean/RPG defaults for new installations, Reset layout, and FPS kill/death tools. Existing preferences remain unchanged. See the [release notes](https://github.com/ReallyJohnSmith/johns-twitch-handler/blob/main/CHANGELOG.md).
 
 ## Current limits
 
@@ -24,4 +24,4 @@ The GitHub source can describe work that is not in your installed copy yet. Tact
 - Keyboard shortcuts work when the dashboard tab has focus, not while you are playing in another window.
 - Connection settings and reports belong to this Windows account on this PC. They are not automatically shared with John or copied to another computer.
 
-The [one-minute video](https://github.com/ReallyJohnSmith/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.mp4) shows the development preview, including features waiting for the next release. It is a separate download, not part of the installer. Setup and the first test do not depend on it.
+The [one-minute video](https://github.com/ReallyJohnSmith/johns-twitch-handler/raw/refs/heads/main/docs/media/Johns-Twitch-Handler-60-Second-Tour.mp4) shows the features included in .016. It is a separate download, not part of the installer. Setup and the first test do not depend on it.

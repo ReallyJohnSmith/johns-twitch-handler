@@ -6,7 +6,7 @@ The tour covers setup checks, live controls, highlights, stream health, appearan
 
 - One minute, 1080p MP4, about 6.5 MB.
 - Narration and on-screen captions included. The separate SRT caption file is optional.
-- Shows the development preview; some features are waiting for the next numbered release.
+- Shows features included in release .016.
 
 If the video opens in your browser instead of downloading, use the player's download menu or right-click the video and choose **Save video as**.
 

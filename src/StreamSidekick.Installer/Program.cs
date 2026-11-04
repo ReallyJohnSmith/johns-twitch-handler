@@ -1,6 +1,8 @@
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Runtime.InteropServices;
+using System.Text.Json;
+using Microsoft.Win32;
 
 const string productName = "John's Twitch Handler";
 const string payloadResourceName = "JohnsTwitchHandler.Payload.zip";
@@ -70,6 +72,23 @@ try
 
     if (!verificationMode)
     {
+        using var settings = JsonDocument.Parse(File.ReadAllText(Path.Combine(installRoot, "appsettings.json")));
+        var websiteEnabled = settings.RootElement.TryGetProperty("WebsiteBridge", out var website)
+            && website.TryGetProperty("StartOnSignIn", out var startup) && startup.ValueKind == JsonValueKind.True;
+        if (websiteEnabled)
+        {
+            // This is part of the explicitly website-enabled installer. No admin access,
+            // firewall changes, or service installation is required.
+            CreateShortcut(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.Startup), "John's Twitch Handler Helper.lnk"),
+                Path.Combine(installRoot, "Start Website Helper.cmd"), installRoot);
+            using var protocol = Registry.CurrentUser.CreateSubKey(@"Software\Classes\johnshandler");
+            protocol.SetValue("", "URL:John's Twitch Handler Helper");
+            protocol.SetValue("URL Protocol", "");
+            using var command = protocol.CreateSubKey(@"shell\open\command");
+            // Never pass URI contents to PowerShell; all protocol URLs perform only Start.
+            var powershell = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.System), @"WindowsPowerShell\v1.0\powershell.exe");
+            command.SetValue("", $"\"{powershell}\" -NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File \"{Path.Combine(installRoot, "Start-WebsiteHelper.ps1")}\"");
+        }
         CreateShortcut(
             Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory), $"{productName}.lnk"),
             launcherPath,

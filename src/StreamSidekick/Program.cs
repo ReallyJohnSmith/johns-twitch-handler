@@ -24,6 +24,8 @@ if (OperatingSystem.IsWindows()) dataProtection.ProtectKeysWithDpapi();
 
 // Services are singletons because each represents one local stream session or one external connection.
 builder.Services.AddSingleton<SecureConnectionStore>();
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<WebsiteBridge>();
 builder.Services.AddSingleton<ConnectionDiagnosticsLog>();
 builder.Services.AddSingleton<DashboardLayoutStore>();
 builder.Services.AddSingleton<ObsWebSocketClient>();
@@ -59,6 +61,8 @@ builder.Services.AddHostedService(provider => provider.GetRequiredService<TikFin
 builder.Services.AddHttpClient();
 
 var app = builder.Build();
+app.UseWebsiteBridge();
+app.MapWebsiteBridge();
 
 // The dashboard always lives at the same bookmark. Revalidation prevents an older browser-cached
 // interface from surviving after an approved build is installed and the Handler is restarted.

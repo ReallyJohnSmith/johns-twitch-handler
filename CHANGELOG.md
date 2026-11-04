@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+## .016 - 2026-11-03
+
+- Prepared the Windows tester release with product-only branding and no preconfigured experimental website connection.
+- Simplified first-run setup with an OBS-first explanation, optional integration details, an account-free exploration path, and inline OBS password/connection help.
+- Kept narrow Settings within the viewport by wrapping connection buttons and allowing fieldsets to shrink.
+- Added startup retry and bounded status-read timeouts, with independent startup tasks and no duplicate polling loops after retry.
+- Shared identical overlapping status requests, suspended dashboard polling while hidden, and skipped hidden mixer/chart work while keeping Simple health current and Windows monitoring independent.
+- Clear stale health after a failed refresh and show an explicit unavailable state in Simple mode and the During status strip.
+- Replaced the dashboard's Twitch embed with a clean local message list, removing its header, gift leaderboard, and promotions. A separate Open Twitch chat link keeps replies and moderation available; other chat platforms and the private chime remain unchanged.
 - Added the approved one-minute video tour and downloadable captions, linked from the README and tester guides.
 - Added a plain-language tester kit with setup help, a short checklist, feedback forms, and known limitations. Future installers include an offline guide, also available from Settings.
 - Cleaned up tester-facing documentation and renamed the technical background document to Project notes.
